@@ -3,11 +3,14 @@
 namespace Splicewire\Beam\Docs;
 
 use Illuminate\Support\Facades\Route;
+use Rushing\Surgeon\Operation\SuggestsOperations;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
+use Splicewire\Beam\Docs\Console\ExportFrontendContractsCommand;
 use Splicewire\Beam\Docs\Console\GenerateOpenApiCommand;
 use Splicewire\Beam\Docs\Console\PublishScalarCommand;
 use Splicewire\Beam\Docs\Http\DocsReadAccess;
+use Splicewire\Beam\Docs\Publishing\Validation\ReleaseVersion;
 use Splicewire\Beam\Doctor\BeamDoctorManifest;
 use Splicewire\Beam\Doctor\ScribeOutputContractAudit;
 use Splicewire\Beam\Http\OpenApiSpecController;
@@ -29,6 +32,11 @@ class BeamDocsServiceProvider extends PackageServiceProvider
 
     public function packageRegistered(): void
     {
+        config(['data-schemas.validation_mapping' => [
+            ReleaseVersion::class => static fn (): array => ['pattern' => ReleaseVersion::PATTERN],
+            ...(array) config('data-schemas.validation_mapping', []),
+        ]]);
+
         // Run before any provider boots: Scribe mounts its routes during boot, so suppressing them
         // afterwards would leave an unguarded documentation door beside our visibility policy.
         $this->app->booting(function (): void {
@@ -55,7 +63,7 @@ class BeamDocsServiceProvider extends PackageServiceProvider
             dirname(__DIR__).'/stubs/scribe/scribe.php' => config_path('scribe.php'),
         ], 'beam-scribe');
 
-        $this->commands([GenerateOpenApiCommand::class, PublishScalarCommand::class]);
+        $this->commands([GenerateOpenApiCommand::class, PublishScalarCommand::class, ExportFrontendContractsCommand::class]);
 
         $this->app->make(BeamInstallManifest::class)->register(
             package: 'splicewire/laravel-beam-docs',
@@ -67,7 +75,7 @@ class BeamDocsServiceProvider extends PackageServiceProvider
 
         $manifest = $this->app->make(BeamDoctorManifest::class);
         $manifest->register('splicewire/laravel-beam-docs', ScribeOutputContractAudit::class);
-        if (interface_exists(\Rushing\Surgeon\Operation\SuggestsOperations::class)) {
+        if (interface_exists(SuggestsOperations::class)) {
             $manifest->register('splicewire/laravel-beam-docs', SdkNameConventionAudit::class);
         }
 

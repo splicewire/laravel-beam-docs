@@ -29,3 +29,9 @@ A successful current-destination publication can expose a Registry link beside t
 ## Verification
 
 Run `composer test`. The package's tests exercise generation and artifact routes, privacy/adoption, and command/operator publication through a controlled Scalar executable. A real remote smoke test additionally requires a provisioned Scalar destination and token; unit tests do not claim to upload to Scalar.
+
+## Frontend contracts
+
+`php artisan splicewire:beam:docs:export-contracts` prints a JSON map of generated frontend filenames and contents. It derives types through Spatie's TypeScript transformer and schemas through the configured `schemastud/laravel-data-schemas` generator. The publication DTO owns its status enum and timestamp nullability; `PublishInputData` owns the release field and validation. The release constraint uses one pattern shared by PHP validation and JSON Schema.
+
+To deliberately regenerate the frontend package, pass `--write --output=path/to/beam-docs/src/generated`. Without `--write`, the command never writes. With this package's development dependencies installed, `vendor/bin/testbench` can replace `artisan`; no host database or Scalar account is needed. The frontend's `contracts:check` compares the read-only export against its committed artifacts and fails on missing producer configuration or drift.

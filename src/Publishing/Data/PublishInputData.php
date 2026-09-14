@@ -2,14 +2,17 @@
 
 namespace Splicewire\Beam\Docs\Publishing\Data;
 
+use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\LaravelData\Attributes\Validation\Max;
-use Spatie\LaravelData\Attributes\Validation\Regex;
+use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
+use Splicewire\Beam\Docs\Publishing\Validation\ReleaseVersion;
 
+#[TypeScript]
 class PublishInputData extends BeamData
 {
     public function __construct(
-        #[Max(128), Regex('/\A[A-Za-z0-9][A-Za-z0-9._+-]*\z/')]
+        #[Title('Release version'), Max(128), ReleaseVersion]
         public string $version,
     ) {}
 }

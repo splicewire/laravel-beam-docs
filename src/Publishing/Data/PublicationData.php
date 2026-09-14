@@ -2,15 +2,18 @@
 
 namespace Splicewire\Beam\Docs\Publishing\Data;
 
+use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
 use Splicewire\Beam\Docs\Publishing\Publication;
+use Splicewire\Beam\Docs\Publishing\PublicationStatus;
 
+#[TypeScript]
 class PublicationData extends BeamData
 {
     public function __construct(
         public string $id,
         public string $version,
-        public string $status,
+        public PublicationStatus $status,
         public string $sha256,
         public string $namespace,
         public string $slug,
@@ -28,7 +31,7 @@ class PublicationData extends BeamData
         return new static(
             $publication->id,
             $publication->version,
-            $publication->status,
+            PublicationStatus::from($publication->status),
             $publication->sha256,
             $publication->namespace,
             $publication->slug,
