@@ -10,6 +10,7 @@ use Rushing\PermissionCascade\PermissionCascadeServiceProvider;
 use Rushing\Popcorn\Laravel\PopcornServiceProvider;
 use Rushing\Versioning\VersioningServiceProvider;
 use Schemastud\DataSchemas\LaravelDataSchemasServiceProvider;
+use Schemastud\Frame\FrameServiceProvider;
 use Schemastud\JsonNs\Laravel\JsonNsServiceProvider;
 use Spatie\Activitylog\ActivitylogServiceProvider;
 use Spatie\LaravelData\LaravelDataServiceProvider;
@@ -27,6 +28,7 @@ abstract class TestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
+            FrameServiceProvider::class,
             BeamServiceProvider::class,
             BeamDocsServiceProvider::class,
             BeamUxServiceProvider::class,
