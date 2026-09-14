@@ -1,0 +1,178 @@
+{
+    "name": "splicewire/laravel-beam-docs",
+    "description": "Optional Beam OpenAPI documentation and Scalar publication.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "illuminate/queue": "^11.0|^12.0|^13.0",
+        "rushing/laravel-data-schemas-scribe": "dev-main",
+        "splicewire/laravel-beam": "dev-main",
+        "spatie/laravel-package-tools": "^1.16",
+        "symfony/yaml": "^6.0|^7.0|^8.0",
+        "symfony/process": "^6.0|^7.0|^8.0",
+        "splicewire/laravel-beam-ux": "dev-main"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.0",
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "pestphp/pest": "^4.0",
+        "phpunit/phpunit": "^11.0|^12.0",
+        "rushing/laravel-surgeon": "*",
+        "rushing/php-package-topology": "dev-main",
+        "wikimedia/composer-merge-plugin": "^2.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Splicewire\\Beam\\Docs\\": "src/",
+            "Splicewire\\Beam\\Scribe\\": "legacy/Scribe/",
+            "Splicewire\\Beam\\OpenApi\\": "legacy/OpenApi/"
+        },
+        "classmap": [
+            "legacy/Http/",
+            "legacy/Doctor/",
+            "legacy/Surgeon/",
+            "legacy/Surface/"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Splicewire\\Beam\\Docs\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Splicewire\\Beam\\Docs\\BeamDocsServiceProvider"
+            ]
+        },
+        "merge-plugin": {
+            "include": [
+                "composer.local.json"
+            ]
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "wikimedia/composer-merge-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "@php vendor/bin/pest",
+        "pint": "@php -d memory_limit=512M vendor/bin/pint"
+    },
+    "repositories": [
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/codegen.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/laravel-data-filters.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/laravel-data-nav.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/laravel-data-schemas-scribe.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/laravel-doctor.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/laravel-permission-cascade.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/laravel-popcorn.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/laravel-schema-convergence.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/laravel-surgeon.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/laravel-versioning.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/php-package-topology.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/schemastud/laravel-data-schemas.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/schemastud/laravel-frame.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/schemastud/laravel-json-ns.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/php-popcorn.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/laravel-graphine.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/laravel-pipeline-registry.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/php-graphine.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/schemastud/php-json-ns.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/splicewire/laravel-beam.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/splicewire/laravel-beam-accounts.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/splicewire/laravel-beam-mdx.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/splicewire/laravel-beam-sitemap.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/splicewire/laravel-beam-sync.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/splicewire/laravel-beam-taxonomy.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/splicewire/laravel-beam-ux.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/splicewire/laravel-beam-workflows.git"
+        }
+    ]
+}

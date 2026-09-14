@@ -1,0 +1,28 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
+use Splicewire\Beam\Docs\Seed\DocsSeeder;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        if (! Schema::hasTable('beam_ux_entries')) {
+            return;
+        }
+        if (! Schema::hasColumn('beam_ux_entries', 'requirements')) {
+            throw new RuntimeException('Install the Beam UX requirements migration before adopting docs.');
+        }
+        $seeder = new DocsSeeder;
+        $root = $seeder->existingRoot();
+        if ($root !== null) {
+            $seeder->adopt($root);
+        }
+    }
+
+    public function down(): void
+    {
+        // Retain the requirement: uninstalling documentation must not expose retained content.
+    }
+};
