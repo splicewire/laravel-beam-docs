@@ -5,6 +5,7 @@ namespace Splicewire\Beam\Docs\Tests\Publishing;
 use Illuminate\Auth\GenericUser;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Splicewire\Beam\Docs\Publishing\Jobs\PublishToScalar;
 use Splicewire\Beam\Docs\Publishing\Publication;
 
@@ -61,6 +62,23 @@ class PublicationHttpAndCommandTest extends PublicationTestCase
         $this->postJson('/beam/docs/publications', ['version' => '1.0.0'])->assertForbidden();
         $this->getJson('/beam/docs/publications')->assertForbidden();
         $this->assertSame(0, Publication::query()->count());
+    }
+
+    public function test_reader_link_honors_table_prefix_visibility_and_tenant_isolation(): void
+    {
+        Schema::rename('beam_docs_publications', 'custom_docs_publications');
+        config(['beam.core.table_prefix' => 'custom_']);
+        $attempt = $this->service()->capture('1.0.0');
+        $this->service()->run($attempt->id);
+        $this->getJson('/beam/docs/registry-link')->assertOk()
+            ->assertJsonPath('data.url', 'https://registry.scalar.com/@test-team/apis/test-api@1.0.0');
+        config(['beam.docs.scalar.show_link' => false]);
+        $this->getJson('/beam/docs/registry-link')->assertOk()->assertJsonPath('data.url', null);
+        config(['beam.docs.scalar.show_link' => true, 'beam.docs.visibility' => 'private']);
+        $this->getJson('/beam/docs/registry-link')->assertNotFound();
+        config(['beam.docs.visibility' => 'public']);
+        $this->app->instance('tenancy', (object) ['initialized' => true]);
+        $this->getJson('/beam/docs/registry-link')->assertOk()->assertJsonPath('data.url', null);
     }
 
     public function test_the_command_publishes_synchronously_without_an_http_gate_and_exits_on_failures(): void

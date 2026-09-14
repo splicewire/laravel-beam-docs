@@ -2,7 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Schema;
-use Splicewire\Beam\Docs\Seed\DocsSeeder;
+use Splicewire\Beam\Ux\Models\BeamUxEntry;
 
 return new class extends Migration
 {
@@ -14,10 +14,11 @@ return new class extends Migration
         if (! Schema::hasColumn('beam_ux_entries', 'requirements')) {
             throw new RuntimeException('Install the Beam UX requirements migration before adopting docs.');
         }
-        $seeder = new DocsSeeder;
-        $root = $seeder->existingRoot();
-        if ($root !== null) {
-            $seeder->adopt($root);
+        $root = BeamUxEntry::query()->where('slug', config('beam.docs.root_slug', 'docs'))
+            ->where('namespace', config('beam.docs.root_namespace'))->first();
+        if ($root !== null && ! in_array('beam-docs', $root->requirements ?? [], true)) {
+            $root->requirements = [...($root->requirements ?? []), 'beam-docs'];
+            $root->save();
         }
     }
 

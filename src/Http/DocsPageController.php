@@ -10,6 +10,7 @@ use Splicewire\Beam\Docs\Data\RegistryLinkData;
 use Splicewire\Beam\Docs\Data\RegistryLinkResponseData;
 use Splicewire\Beam\Docs\Publishing\PublicationService;
 use Splicewire\Beam\Docs\Seed\DocsSeeder;
+use Splicewire\Beam\Facades\Beam;
 use Splicewire\Beam\Ux\Http\EntryRenderer;
 
 class DocsPageController
@@ -30,7 +31,7 @@ class DocsPageController
     public function registryLink(PublicationService $publications): mixed
     {
         $host = ! app()->bound('tenancy') || ! app('tenancy')->initialized;
-        $url = $host && Schema::hasTable('beam_docs_publications') ? $publications->latestSuccessfulUrl() : null;
+        $url = $host && Schema::hasTable(Beam::table('docs_publications')) ? $publications->latestSuccessfulUrl() : null;
 
         return response()->json((new RegistryLinkResponseData(new RegistryLinkData($url)))->toArray());
     }
