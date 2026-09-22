@@ -2,9 +2,14 @@
 
 namespace Splicewire\Beam\Docs\Tests\Scribe;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Routing\Route;
 use Knuckles\Camel\Extraction\ExtractedEndpointData;
 use Knuckles\Scribe\Tools\DocumentationConfig;
+use Rushing\DataFilters\Attributes\Filterable;
+use Rushing\DataFilters\Attributes\Sortable;
+use Rushing\DataFilters\Operators\Exact;
+use Spatie\LaravelData\Data;
 use Splicewire\Beam\Docs\Tests\TestCase;
 use Splicewire\Beam\Http\Particle\ParticleController;
 use Splicewire\Beam\Http\Particle\ParticleOperationController;
@@ -14,6 +19,17 @@ use Splicewire\Beam\Particle\ParticleOperationRegistry;
 use Splicewire\Beam\Particle\ParticleResource;
 use Splicewire\Beam\Particle\ParticleResourceRegistry;
 use Splicewire\Beam\Scribe\Strategies\ParticleTitleStrategy;
+
+class TitleFixtureModel extends Model {}
+
+class TitleFixtureFilterData extends Data
+{
+    public function __construct(
+        #[Filterable(Exact::class)]
+        #[Sortable]
+        public string $name = '',
+    ) {}
+}
 
 /**
  * A dissolved particle route has no docblock for `GetFromDocBlocks` to summarize, so its docs-sidebar
@@ -51,7 +67,7 @@ class ParticleTitleStrategyTest extends TestCase
 
     private function opEndpoint(string $resource, string $name): ExtractedEndpointData
     {
-        $route = (new Route(['POST'], "{$resource}/{id}/op/{$name}", [
+        $route = (new Route(['POST'], "{$resource}/{id}/{$name}", [
             'uses' => ParticleOperationController::class.'@invoke',
             'controller' => ParticleOperationController::class.'@invoke',
         ]))
@@ -61,13 +77,13 @@ class ParticleTitleStrategyTest extends TestCase
         return ExtractedEndpointData::fromRoute($route);
     }
 
-    private function registerResource(string $key, string $label = '', bool $filterable = true, string $singularLabel = ''): void
+    private function registerResource(string $key, string $label = '', ?string $data = TitleFixtureFilterData::class, string $singularLabel = ''): void
     {
         app(ParticleResourceRegistry::class)->register(new ParticleResource(
             key: $key,
-            backing: 'App\\Models\\Fixture',
+            backing: TitleFixtureModel::class,
             label: $label,
-            filterable: $filterable,
+            data: $data,
             frame: false,
             singularLabel: $singularLabel,
         ));
@@ -106,12 +122,11 @@ class ParticleTitleStrategyTest extends TestCase
 
     public function test_a_label_less_resource_titles_off_a_headline_of_its_registry_key(): void
     {
-        $this->registerResource('runner-transforms', filterable: false);
+        $this->registerResource('runner-transforms', data: null);
 
         $result = $this->strategy()($this->endpoint('api/v1/runner-transforms', 'index', 'runner-transforms'));
 
-        // filterable: false ⇒ no facets note — the description must not promise a filter surface the
-        // declaration never opted into.
+        // No declared filter Data means the description must not promise facets.
         $this->assertSame([
             'title' => 'List Runner Transforms',
             'description' => 'Paginated list of runner transforms.',
@@ -151,7 +166,7 @@ class ParticleTitleStrategyTest extends TestCase
 
     public function test_a_declared_singular_label_overrides_the_inflected_singular_on_crud_verbs(): void
     {
-        $this->registerResource('media', singularLabel: 'Media', filterable: false);
+        $this->registerResource('media', singularLabel: 'Media', data: null);
 
         $show = $this->strategy()($this->endpoint('api/v1/media/{id}', 'show', 'media'));
 

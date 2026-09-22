@@ -128,16 +128,18 @@ class RegistryRouteParametersTest extends TestCase
             key: 'queue', backing: RegistryRouteBacking::class, readOnly: true,
         ));
         app(ParticleResourceRegistry::class)->register(new ParticleResource(
-            key: 'unfiltered', backing: User::class, filterable: false,
+            key: 'unfiltered', backing: User::class,
         ));
         $schema = $this->endpoint('/frame/resources/queue/filters/schema');
         $this->assertContains('queue', $schema->urlParameters['resource']->enumValues);
         $this->assertContains('unfiltered', $schema->urlParameters['resource']->enumValues);
         $variants = $this->endpoint('/frame/resources/papers/filters/variants');
-        $this->assertNotContains('queue', $variants->urlParameters['resource']->enumValues);
-        $this->assertNotContains('unfiltered', $variants->urlParameters['resource']->enumValues);
+        $this->assertContains('queue', $variants->urlParameters['resource']->enumValues);
+        $this->assertContains('unfiltered', $variants->urlParameters['resource']->enumValues);
         $this->getJson('/frame/resources/queue/filters/schema')->assertOk();
         $this->getJson('/frame/resources/unfiltered/filters/schema')->assertOk();
+        $this->getJson('/frame/resources/queue/filters/variants')->assertOk()->assertJsonPath('data.variants', []);
+        $this->getJson('/frame/resources/unfiltered/filters/variants')->assertOk()->assertJsonPath('data.variants', []);
     }
 
     public function test_options_document_handles_without_resolving_option_rows(): void

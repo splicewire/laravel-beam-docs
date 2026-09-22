@@ -172,7 +172,7 @@ class ParticleOperationInputAxisTest extends TestCase
     /** @param  list<string>  $methods */
     private function endpoint(array $methods): ExtractedEndpointData
     {
-        $route = (new Route($methods, 'catalogs/{id}/op/recalculate', [
+        $route = (new Route($methods, 'catalogs/{id}/recalculate', [
             'uses' => ParticleOperationController::class.'@invoke',
             'controller' => ParticleOperationController::class.'@invoke',
         ]))

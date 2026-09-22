@@ -5,6 +5,7 @@ namespace Splicewire\Beam\Scribe\Strategies;
 use Illuminate\Support\Str;
 use Knuckles\Camel\Extraction\ExtractedEndpointData;
 use Knuckles\Scribe\Extracting\Strategies\Strategy;
+use Splicewire\Beam\Filters\ResourceFilterDefinition;
 use Splicewire\Beam\Http\Particle\ParticleController;
 use Splicewire\Beam\Http\Particle\ParticleOperationController;
 use Splicewire\Beam\Particle\OperationKind;
@@ -150,7 +151,7 @@ class ParticleTitleStrategy extends Strategy
     {
         $registry = app(ParticleResourceRegistry::class);
 
-        return $registry->has($key) && $registry->get($key)->filterable
+        return $registry->has($key) && app(ResourceFilterDefinition::class)->hasVocabulary($registry->get($key))
             ? " Supports the resource's declared filter and sort facets."
             : '';
     }

@@ -11,6 +11,7 @@ use Rushing\DataFilters\Keywords;
 use Rushing\DataFilters\Query\ResourceQuery;
 use Schemastud\DataSchemas\Generators\Generator;
 use Splicewire\Beam\Discovery\SubSurface;
+use Splicewire\Beam\Filters\ResourceFilterDefinition;
 use Splicewire\Beam\Http\Particle\ParticleController;
 use Splicewire\Beam\Particle\ParticleResource;
 use Splicewire\Beam\Particle\ParticleResourceRegistry;
@@ -98,29 +99,15 @@ class ParticleListParameterStrategy extends Strategy
             return $this->fromFilterRegistry($key);
         }
 
-        // A `filterable: false` resource has no data-filters query at all — its index is an unfiltered,
-        // default-sorted list, so there is nothing but pagination to document.
-        if (! $resource->filterable) {
-            return $this->pagination($resource);
-        }
-
-        // Declared `filterable: true` but absent from the data-filters registry: a real inconsistency,
-        // but one the runtime index will raise on its own. Documenting pagination alone is honest here.
-        //
-        // The key comes from a `#[ParticleResource]` declaration and is checked against a DIFFERENT
-        // registry, so from here it is outside input and the lookup is the nullable half of the miss
-        // pair (registry-kernel ticket 61). This was a `catch (InvalidArgumentException)` until
-        // `data-filters.resources` conformed to the popcorn kernel (ticket 38) and its miss became a
-        // `RegistryMiss` — a `RuntimeException`, so the catch stopped catching and the degrade-to-
-        // pagination path became a fatal doc-generation error. Same cause as tower's
-        // `FilterSchemaController`, found by the same audit.
-        $definition = DataFilter::tryResource($resource->key);
+        // Use the runtime's declared filter definition, including inferred Data attributes.
+        $resolver = app(ResourceFilterDefinition::class);
+        $definition = $resolver->definition($resource->key);
 
         if ($definition === null) {
             return $this->pagination($resource);
         }
 
-        $query = DataFilter::query($resource->key);
+        $query = $resolver->query($definition);
         $facets = $this->facets($definition->data);
 
         return [

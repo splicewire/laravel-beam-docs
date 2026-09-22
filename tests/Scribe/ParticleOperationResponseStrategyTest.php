@@ -47,7 +47,7 @@ class ParticleOperationResponseStrategyTest extends TestCase
 
     private function endpoint(): ExtractedEndpointData
     {
-        $route = (new Route(['POST'], 'catalogs/{id}/op/recalculate', [
+        $route = (new Route(['POST'], 'catalogs/{id}/recalculate', [
             'uses' => ParticleOperationController::class.'@invoke',
             'controller' => ParticleOperationController::class.'@invoke',
         ]))

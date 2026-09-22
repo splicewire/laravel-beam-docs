@@ -126,14 +126,13 @@ class ScribeChainDispatchTest extends TestCase
         config()->set('data-schemas.generators', [RefusingFixtureGenerator::class]);
     }
 
-    private function registerResource(?string $data, string|false|null $input, bool $filterable = false): void
+    private function registerResource(?string $data, string|false|null $input): void
     {
         app(ParticleResourceRegistry::class)->register(new ParticleResource(
             key: 'catalogs',
             backing: ChainListModel::class,
             data: $data,
             input: $input,
-            filterable: $filterable,
         ));
     }
 
@@ -162,7 +161,7 @@ class ScribeChainDispatchTest extends TestCase
 
     private function operationEndpoint(string $verb = 'POST'): ExtractedEndpointData
     {
-        $route = (new Route([$verb], 'catalogs/op/recalculate', [
+        $route = (new Route([$verb], 'catalogs/recalculate', [
             'uses' => ParticleOperationController::class.'@invoke',
             'controller' => ParticleOperationController::class.'@invoke',
         ]))
@@ -355,7 +354,7 @@ class ScribeChainDispatchTest extends TestCase
             'model' => ChainListModel::class,
         ]);
 
-        $this->registerResource(data: ChainListFilterData::class, input: null, filterable: true);
+        $this->registerResource(data: ChainListFilterData::class, input: null);
     }
 
     public function test_a_facet_class_the_narrow_generator_refuses_falls_through_and_keeps_its_prose(): void

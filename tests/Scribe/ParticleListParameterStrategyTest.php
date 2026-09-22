@@ -150,18 +150,17 @@ class ParticleListParameterStrategyTest extends TestCase
         ]);
     }
 
-    private function register(bool $filterable = true, int $perPage = 20): void
+    private function register(int $perPage = 20, string $key = 'catalogs', ?string $data = ListFixtureFilterData::class): void
     {
         app(ParticleResourceRegistry::class)->register(new ParticleResource(
-            key: 'catalogs',
+            key: $key,
             backing: ListFixtureModel::class,
-            data: ListFixtureFilterData::class,
-            filterable: $filterable,
+            data: $data,
             perPage: $perPage,
         ));
     }
 
-    private function endpoint(string $method = 'index', bool $particle = true): ExtractedEndpointData
+    private function endpoint(string $method = 'index', bool $particle = true, string $key = 'catalogs'): ExtractedEndpointData
     {
         $route = new Route(['GET'], 'catalogs', [
             'uses' => ParticleController::class.'@'.$method,
@@ -169,7 +168,7 @@ class ParticleListParameterStrategyTest extends TestCase
         ]);
 
         if ($particle) {
-            $route->defaults(ParticleController::RESOURCE, 'catalogs');
+            $route->defaults(ParticleController::RESOURCE, $key);
         }
 
         return ExtractedEndpointData::fromRoute($route);
@@ -279,16 +278,30 @@ class ParticleListParameterStrategyTest extends TestCase
         $this->assertSame([], $parameters[$this->filterKey('customStatus')]['enumValues']);
     }
 
-    public function test_a_non_filterable_resource_documents_pagination_only(): void
+    public function test_a_resource_without_declared_filters_documents_pagination_only(): void
     {
-        $this->register(filterable: false);
+        $this->register(key: 'unfiltered', data: null);
 
-        $parameters = $this->strategy()($this->endpoint());
+        $parameters = $this->strategy()($this->endpoint(key: 'unfiltered'));
 
         $this->assertSame(
             [ParticleController::PAGE, ParticleController::PER_PAGE],
             array_keys($parameters),
         );
+    }
+
+    public function test_data_attributes_publish_filters_without_a_separate_query_registration(): void
+    {
+        $this->register(key: 'declared');
+        $this->assertNull(DataFilter::tryResource('declared'));
+
+        $parameters = $this->strategy()($this->endpoint(key: 'declared'));
+
+        $this->assertArrayHasKey($this->filterKey('external_ref'), $parameters);
+        $this->assertSame(['draft', 'live'], $parameters[$this->filterKey('status')]['enumValues']);
+        $this->assertArrayHasKey(config('query-builder.parameters.sort', 'sort'), $parameters);
+        $this->assertArrayHasKey(config('query-builder.parameters.include', 'include'), $parameters);
+        $this->assertArrayHasKey(ParticleController::PAGE, $parameters);
     }
 
     public function test_only_the_index_carries_the_list_contract(): void
