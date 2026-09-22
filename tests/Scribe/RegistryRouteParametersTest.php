@@ -18,9 +18,9 @@ use Rushing\DataFilters\Registry\ResourceDefinition;
 use Rushing\DataFilters\Registry\ResourceRegistry;
 use Rushing\DataFilters\SavedFilters\SavedFilter;
 use Rushing\LaravelDataSchemasScribe\OpenApi\DataSchemaGenerator;
+use Schemastud\Frame\Routing\ResourceRoutes;
 use Spatie\LaravelData\Data;
 use Splicewire\Beam\Docs\Tests\TestCase;
-use Splicewire\Beam\Facades\Particle;
 use Splicewire\Beam\Particle\Backing\DeclaredFacet;
 use Splicewire\Beam\Particle\Backing\DeclaresFilterVocabulary;
 use Splicewire\Beam\Particle\Backing\FilterVocabulary;
@@ -61,11 +61,16 @@ class RegistryRouteParametersTest extends TestCase
         foreach (['papers' => 'papers', 'journals' => 'papers', 'threads' => 'threads'] as $key => $resource) {
             app(ResourceRegistry::class)->registerDefinition(new ResourceDefinition(
                 key: $key, data: RegistryRouteFilterData::class, query: RegistryRouteQuery::class,
-                model: 'UnusedModel', resource: $resource,
+                model: User::class, resource: $resource,
             ));
         }
-        Particle::filters('papers', at: 'publications');
-        Particle::filters(null, at: 'frame/resources/{resource}', names: 'dynamic');
+        foreach (['papers', 'threads'] as $key) {
+            app(ParticleResourceRegistry::class)->register(new ParticleResource(
+                key: $key, backing: User::class, data: RegistryRouteFilterData::class,
+                query: RegistryRouteQuery::class, label: ucfirst($key),
+            ));
+        }
+        ResourceRoutes::filters(at: 'publications', names: 'publications', defaults: ['resource' => 'papers']);
     }
 
     private function endpoint(string $path): ExtractedEndpointData
@@ -112,10 +117,9 @@ class RegistryRouteParametersTest extends TestCase
     {
         $endpoint = $this->endpoint('/frame/resources/papers/filters/journals/schema');
         $this->assertSame(['resource', 'variant'], array_keys($endpoint->urlParameters));
-        $this->assertSame(
-            ['beam-ux-entry', 'beam-ux-mirror-status', 'beam-ux-sitemap-health', 'hooks', 'journals', 'papers', 'threads'],
-            $endpoint->urlParameters['resource']->enumValues,
-        );
+        $this->assertContains('papers', $endpoint->urlParameters['resource']->enumValues);
+        $this->assertContains('threads', $endpoint->urlParameters['resource']->enumValues);
+        $this->assertNotContains('journals', $endpoint->urlParameters['resource']->enumValues);
         $this->assertStringContainsString('depends on the resource', $endpoint->urlParameters['variant']->description);
         $this->getJson('/frame/resources/papers/filters/journals/schema')->assertOk();
         $this->getJson('/frame/resources/papers/filters/threads/schema')->assertNotFound();
@@ -125,10 +129,10 @@ class RegistryRouteParametersTest extends TestCase
     public function test_schema_resources_include_declarations_without_a_filter_dto(): void
     {
         app(ParticleResourceRegistry::class)->register(new ParticleResource(
-            key: 'queue', backing: RegistryRouteBacking::class, readOnly: true,
+            key: 'queue', backing: RegistryRouteBacking::class, data: RegistryRouteFilterData::class, readOnly: true, label: 'Queue',
         ));
         app(ParticleResourceRegistry::class)->register(new ParticleResource(
-            key: 'unfiltered', backing: User::class,
+            key: 'unfiltered', backing: User::class, data: RegistryRouteFilterData::class, label: 'Unfiltered',
         ));
         $schema = $this->endpoint('/frame/resources/queue/filters/schema');
         $this->assertContains('queue', $schema->urlParameters['resource']->enumValues);
@@ -145,7 +149,7 @@ class RegistryRouteParametersTest extends TestCase
     public function test_options_document_handles_without_resolving_option_rows(): void
     {
         app(ParticleResourceRegistry::class)->register(new ParticleResource(
-            key: 'queue', backing: RegistryRouteBacking::class, readOnly: true,
+            key: 'queue', backing: RegistryRouteBacking::class, data: RegistryRouteFilterData::class, readOnly: true, label: 'Queue',
         ));
         $resolutions = 0;
         app(OptionsRegistry::class)->register('paper-owners', function () use (&$resolutions): array {
@@ -166,9 +170,10 @@ class RegistryRouteParametersTest extends TestCase
 
     public function test_saved_filter_id_is_not_described_as_the_parent_resource_id(): void
     {
-        $endpoint = $this->endpoint('/publications/filters/00000000-0000-4000-8000-000000000000');
-        $this->assertSame(['id'], array_keys($endpoint->urlParameters));
-        $this->assertSame('The ID of the saved filter.', $endpoint->urlParameters['id']->description);
+        $endpoint = $this->endpoint('/frame/resources/saved-filters/records/00000000-0000-4000-8000-000000000000');
+        $this->assertSame(['resource', 'id'], array_keys($endpoint->urlParameters));
+        $this->assertSame('The resource record ID.', $endpoint->urlParameters['id']->description);
+        $this->assertContains('saved-filters', $endpoint->urlParameters['resource']->enumValues);
     }
 
     public function test_unrelated_model_resolution_does_not_break_variant_discovery(): void
@@ -211,7 +216,7 @@ class RegistryRouteParametersTest extends TestCase
             'name' => 'Reading list', 'resource' => 'papers', 'owner_type' => $user->getMorphClass(),
             'owner_id' => 42, 'visibility' => 'private',
         ]);
-        $uri = '/frame/resources/papers/filters/'.$saved->id;
+        $uri = '/frame/resources/saved-filters/records/'.$saved->id;
         $this->getJson($uri)->assertOk()->assertJsonPath('data.name', 'Reading list');
         $this->putJson($uri, ['name' => 'Revised list'])->assertOk()->assertJsonPath('data.name', 'Revised list');
         $this->deleteJson($uri)->assertNoContent();
@@ -220,7 +225,7 @@ class RegistryRouteParametersTest extends TestCase
 
     public function test_empty_vocabulary_remains_impossible_in_openapi(): void
     {
-        Particle::filters('unknown', at: 'empty');
+        ResourceRoutes::filters(at: 'empty', names: 'empty', defaults: ['resource' => 'unknown']);
         $endpoint = $this->endpoint('/empty/filters/anything/schema');
         $this->assertNull($endpoint->urlParameters['variant']->example);
         $operation = (new DataSchemaGenerator(new DocumentationConfig([])))->pathItem([], [], new OutputEndpointData($endpoint->toArray()));

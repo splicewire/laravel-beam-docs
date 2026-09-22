@@ -23,7 +23,6 @@ use Spatie\LaravelData\Optional;
 use Spatie\QueryBuilder\AllowedFilter;
 use Splicewire\Beam\Discovery\Http\ResourceDiscoveryController;
 use Splicewire\Beam\Docs\Tests\TestCase;
-use Splicewire\Beam\Filters\Http\ResourceFiltersController;
 use Splicewire\Beam\Http\Particle\ParticleController;
 use Splicewire\Beam\Particle\ParticleResource;
 use Splicewire\Beam\Particle\ParticleResourceRegistry;
@@ -321,7 +320,7 @@ class ParticleListParameterStrategyTest extends TestCase
     }
 
     /**
-     * api-surface-coherence 102. `->beam()->inResource($key, filters: true)` stamps this same route
+     * api-surface-coherence 102. `->beam()->inResource($key)` stamps this same route
      * default on a HAND-ROLLED exposure, and its argument is a **data-filters** key that need not also
      * carry a `#[ParticleResource]`. This used to `get()` and throw; Scribe caught per-route, printed
      * only under `-v`, and 30 live endpoints at the flagship were silently absent from `openapi.yaml`.
@@ -376,37 +375,14 @@ class ParticleListParameterStrategyTest extends TestCase
         return ExtractedEndpointData::fromRoute($route);
     }
 
-    /**
-     * api-surface-coherence 103, the under-trigger half. `GET /api/v1/guest-tokens` is served by
-     * `GuestTokenController@indexAll` and published ZERO parameters while its circuit-scoped twin
-     * published three — same resource, same data-filters key, different documentation.
-     *
-     * `filters: true` is the declaration that fixes it: {@see BeamRouteProxy::mountFilterSubSurface()}
-     * defines the flag as "this route is the resource's INDEX at this exposure", which is exactly the
-     * fact the method name was being asked to stand in for.
-     */
-    public function test_a_second_collection_action_is_documented_when_the_exposure_declares_the_index(): void
-    {
-        $this->register();
-
-        $parameters = $this->strategy()($this->routeFor(
-            ListFixtureHostController::class,
-            'indexAll',
-            [BeamRouteProxy::FILTERS_PROMISE => 'catalogs'],
-        ));
-
-        $this->assertArrayHasKey($this->filterKey('name'), $parameters);
-        $this->assertArrayHasKey(config('query-builder.parameters.sort', 'sort'), $parameters);
-    }
-
-    /** The second declared spelling: an explicit cardinality on the mount. */
+    /** An explicit collection return applies independently of the controller action name. */
     public function test_a_declared_many_return_documents_the_list_contract_under_any_method_name(): void
     {
         $this->register();
 
         $route = new Route(['GET'], 'catalogs', [
-            'uses' => ListFixtureHostController::class.'@listAll',
-            'controller' => ListFixtureHostController::class.'@listAll',
+            'uses' => ListFixtureHostController::class.'@indexAll',
+            'controller' => ListFixtureHostController::class.'@indexAll',
             BeamRouteProxy::ACTION => ['returns' => ListFixtureFilterData::class, 'returnsMany' => true],
         ]);
         $route->defaults(ParticleController::RESOURCE, 'catalogs');
@@ -414,20 +390,17 @@ class ParticleListParameterStrategyTest extends TestCase
         $parameters = $this->strategy()(ExtractedEndpointData::fromRoute($route));
 
         $this->assertArrayHasKey($this->filterKey('name'), $parameters);
+        $this->assertArrayHasKey(config('query-builder.parameters.sort', 'sort'), $parameters);
     }
 
     /**
-     * api-surface-coherence 103, the OVER-trigger half — 96 routes at the flagship, and the half nothing
-     * could see. Each sub-surface mounted beside a resource carries the same `_particle` stamp and is
-     * served by a controller whose method is ALSO called `index`, so the saved-filter listing was
-     * documented as accepting the filter vocabulary of the resource it lists saved filters FOR.
+     * Capability routes do not inherit the collection query of their parent resource.
      *
      * @return array<string, array{0: class-string, 1: array<string, mixed>}>
      */
     public static function subSurfaceProvider(): array
     {
         return [
-            'saved filters' => [ResourceFiltersController::class, [ResourceFiltersController::CONFIG => ['resource' => 'catalogs']]],
             'discovery' => [ResourceDiscoveryController::class, [ResourceDiscoveryController::CONFIG => ['resource' => 'catalogs']]],
             // The one sub-surface with no config default of its own: recognised by its controller class.
             'hook events' => [HookEventCatalogController::class, []],
@@ -449,7 +422,7 @@ class ParticleListParameterStrategyTest extends TestCase
     /**
      * The rung that is a CONVENTION rather than a declaration, kept deliberately and pinned so its
      * removal is a visible decision: three flagship routes (`api/v1/silos`, `api/v1/agents`,
-     * `api/v1/circuits`) are hand-mounted indexes declaring neither cardinality nor a filter promise,
+     * `api/v1/circuits`) are hand-mounted indexes without an explicit cardinality,
      * and dropping the rung would strip a contract they genuinely serve.
      */
     public function test_an_undeclared_crud_index_still_falls_back_to_the_method_name(): void

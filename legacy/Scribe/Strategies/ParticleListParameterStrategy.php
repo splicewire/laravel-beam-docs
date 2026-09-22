@@ -16,9 +16,7 @@ use Splicewire\Beam\Http\Particle\ParticleController;
 use Splicewire\Beam\Particle\ParticleResource;
 use Splicewire\Beam\Particle\ParticleResourceRegistry;
 use Splicewire\Beam\Routing\BeamRouteAction;
-use Splicewire\Beam\Routing\BeamRouteProxy;
 use Splicewire\Beam\Routing\RouteMetadataReader;
-use Splicewire\Beam\Routing\RouteReturnType;
 
 /**
  * Document a DISSOLVED particle index's full list contract from the declarations the route already carries.
@@ -92,7 +90,7 @@ class ParticleListParameterStrategy extends Strategy
 
         if ($resource === null) {
             // No particle declaration, but the key may still be a data-filters resource — which is the
-            // whole point of `inResource($key, filters: true)`. Document the query contract that IS
+            // whole point of `inResource($key)`. Document the query contract that IS
             // declared and omit pagination: a hand-rolled index chooses its own paging (the flagship's
             // `ReleaseController::index` does a bare `->get()`), so `perPage` would be an invention.
             // The absence itself is reported by `ParticleRouteResourceAudit`, not swallowed.
@@ -119,43 +117,8 @@ class ParticleListParameterStrategy extends Strategy
     }
 
     /**
-     * Is this route the resource's own collection read — the one exposure the list contract describes?
-     *
-     * It used to be `$endpointData->method?->getName() === 'index'`, and that proxy was wrong in BOTH
-     * directions (api-surface-coherence 103), measured at the flagship against the booted router:
-     *
-     *  - **Under-triggered by 1.** `GET /api/v1/guest-tokens` is served by `GuestTokenController@indexAll`
-     *    — a second collection action on one controller — so the resource's declared filter/sort contract
-     *    was absent from the spec while its circuit-scoped twin published three parameters. Same resource,
-     *    same data-filters key, different documentation.
-     *  - **Over-triggered by 96.** Every SUB-SURFACE mounted beside a resource carries the same
-     *    `_particle` stamp and is served by a controller whose method is *also* called `index`:
-     *    `ResourceDiscoveryController` (38 routes), `HookEventCatalogController` (32) and
-     *    `ResourceFiltersController` (26). The saved-filter LISTING at `GET /{resource}/filters` was
-     *    therefore documented as accepting `filter[…]`, `sort`, `include`, `page` and `perPage` off the
-     *    resource it lists saved filters FOR — none of which it reads. That half was invisible, because a
-     *    contract published where none is served produces no error anywhere.
-     *
-     * So the gate is two questions, not one. **Which surface** is a stamped fact ({@see SubSurface::of()},
-     * ticket 105) read off the route's own defaults — the sub-surfaces classify themselves at mount time,
-     * so this is a lookup rather than a parse. **Which action** is asked declaration-first:
-     *
-     *  1. `->beam()->returns(X::class, many: true)` — an explicitly declared cardinality
-     *     ({@see RouteMetadataReader::returnsMany()}). 3 routes at the flagship.
-     *  2. {@see BeamRouteProxy::FILTERS_PROMISE} — `->beam()->inResource($key, filters: true)`, whose own
-     *     docblock defines the flag as *"this route is the resource's INDEX at this exposure"*. 12 routes,
-     *     and the one that lets `indexAll` in.
-     *  3. …and, where neither is declared, the method name — kept, named, and CONFINED to the CRUD
-     *     surface, where a method called `index` genuinely means the resource's index.
-     *
-     * ⚠️ **Rung 3 is a convention, not a declaration, and three flagship routes rest on it alone:**
-     * `GET api/v1/silos`, `GET api/v1/agents`, `GET api/v1/circuits` — hand-mounted indexes that declare
-     * neither cardinality nor a filter promise. Dropping the rung would silently strip a filter contract
-     * those three genuinely serve, so the honest move is to report the declaration gap rather than take
-     * the documentation away: each of them wants one word (`filters: true`, or a `many: true` return) at
-     * its mount, after which this rung can go. It is scoped rather than removed for the same reason
-     * {@see RouteReturnType} keeps its own name-shaped fallback — a missing declaration must degrade,
-     * not break.
+     * Collection cardinality belongs to the declared return shape. The conventional CRUD index
+     * method also denotes a collection; capability routes never inherit that list contract.
      */
     protected function isCollectionRead(ExtractedEndpointData $endpointData): bool
     {
@@ -166,7 +129,6 @@ class ParticleListParameterStrategy extends Strategy
         }
 
         return $this->meta->returnsMany($route)
-            || isset($route->defaults[BeamRouteProxy::FILTERS_PROMISE])
             || $endpointData->method?->getName() === 'index';
     }
 

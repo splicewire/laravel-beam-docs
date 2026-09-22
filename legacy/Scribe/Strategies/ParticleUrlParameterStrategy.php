@@ -16,7 +16,7 @@ use RuntimeException;
 use Rushing\DataFilters\Facades\DataFilter;
 use Schemastud\Frame\Contracts\ResourceRegistry as FrameResources;
 use Schemastud\Frame\Http\Controllers\FrameResourceController;
-use Splicewire\Beam\Filters\Http\ResourceFiltersController;
+use Schemastud\Frame\Http\Controllers\FrameResourceFiltersController;
 use Splicewire\Beam\Filters\ResourceFilterConstraints;
 use Splicewire\Beam\Http\Particle\ParticleController;
 use Splicewire\Beam\Particle\ParticleResource;
@@ -103,7 +103,8 @@ class ParticleUrlParameterStrategy extends Strategy
             return null;
         }
 
-        if (isset($route->defaults[ResourceFiltersController::CONFIG])) {
+        if ($endpointData->method instanceof ReflectionMethod
+            && $endpointData->method->getDeclaringClass()->getName() === FrameResourceFiltersController::class) {
             return $this->filterParameters($endpointData);
         }
 
@@ -112,7 +113,12 @@ class ParticleUrlParameterStrategy extends Strategy
             && in_array('resource', $route->parameterNames(), true)) {
             $keys = array_map(fn ($definition) => $definition->key, app(FrameResources::class)->all());
 
-            return ['resource' => $this->vocabulary($endpointData, 'resource', $keys, 'The registered resource key.')];
+            $parameters = ['resource' => $this->vocabulary($endpointData, 'resource', $keys, 'The registered resource key.')];
+            if (in_array('id', $route->parameterNames(), true)) {
+                $parameters['id'] = ['type' => 'string', 'required' => true, 'description' => 'The resource record ID.'];
+            }
+
+            return $parameters;
         }
 
         $stamped = $this->meta->resourceKey($route);
@@ -162,13 +168,13 @@ class ParticleUrlParameterStrategy extends Strategy
     protected function filterParameters(ExtractedEndpointData $endpoint): array
     {
         $route = $endpoint->route;
-        $configured = $route->defaults[ResourceFiltersController::CONFIG]['resource'];
+        $configured = $route->defaults['resource'] ?? null;
         $canonical = $configured === null ? null : DataFilter::registry()->find($configured)?->resource;
         $parameters = [];
 
         foreach ($route->parameterNames() as $name) {
             $parameters[$name] = match ($name) {
-                'resource' => $this->vocabulary($endpoint, $name, ResourceFilterConstraints::resourceValues($endpoint->method->getName()), 'The registered filter resource key.'),
+                'resource' => $this->vocabulary($endpoint, $name, array_map(fn ($definition) => $definition->key, app(FrameResources::class)->all()), 'The registered resource key.'),
                 'variant' => $this->vocabulary(
                     $endpoint,
                     $name,
@@ -180,12 +186,6 @@ class ParticleUrlParameterStrategy extends Strategy
                     $endpoint, $name, ResourceFilterConstraints::options()->values(),
                     'A registered filter options source key. A backing that declares its filter vocabulary accepts only the sources referenced by that resource’s /filters/schema.',
                 ), 'example' => null],
-                'id' => [
-                    'type' => 'string',
-                    'required' => true,
-                    'description' => 'The ID of the saved filter.',
-                    'example' => $this->uuid('saved-filter:id'),
-                ],
                 default => [
                     'type' => 'string',
                     'required' => true,
