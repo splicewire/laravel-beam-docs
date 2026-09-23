@@ -17,6 +17,7 @@ use Rushing\DataFilters\Facades\DataFilter;
 use Schemastud\Frame\Contracts\ResourceRegistry as FrameResources;
 use Schemastud\Frame\Http\Controllers\FrameResourceController;
 use Schemastud\Frame\Http\Controllers\FrameResourceFiltersController;
+use Schemastud\Frame\Http\Controllers\FrameResourceSummaryController;
 use Splicewire\Beam\Filters\ResourceFilterConstraints;
 use Splicewire\Beam\Http\Particle\ParticleController;
 use Splicewire\Beam\Particle\ParticleResource;
@@ -109,11 +110,15 @@ class ParticleUrlParameterStrategy extends Strategy
         }
 
         if ($endpointData->method instanceof ReflectionMethod
-            && $endpointData->method->getDeclaringClass()->getName() === FrameResourceController::class
+            && in_array($endpointData->method->getDeclaringClass()->getName(), [FrameResourceController::class, FrameResourceSummaryController::class], true)
             && in_array('resource', $route->parameterNames(), true)) {
             $keys = array_map(fn ($definition) => $definition->key, app(FrameResources::class)->all());
 
-            $parameters = ['resource' => $this->vocabulary($endpointData, 'resource', $keys, 'The registered resource key.')];
+            $description = 'The registered resource key.';
+            if ($endpointData->method->getDeclaringClass()->getName() === FrameResourceSummaryController::class) {
+                $description .= ' A summary is not available for every resource.';
+            }
+            $parameters = ['resource' => $this->vocabulary($endpointData, 'resource', $keys, $description)];
             if (in_array('id', $route->parameterNames(), true)) {
                 $parameters['id'] = ['type' => 'string', 'required' => true, 'description' => 'The resource record ID.'];
             }

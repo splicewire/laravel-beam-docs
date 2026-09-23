@@ -18,6 +18,11 @@ use Rushing\DataFilters\Registry\ResourceDefinition;
 use Rushing\DataFilters\Registry\ResourceRegistry;
 use Rushing\DataFilters\SavedFilters\SavedFilter;
 use Rushing\LaravelDataSchemasScribe\OpenApi\DataSchemaGenerator;
+use Schemastud\Frame\Contracts\ResourceRegistry as FrameResources;
+use Schemastud\Frame\Contracts\ResourceSummaryProvider;
+use Schemastud\Frame\Data\SummaryResponseData;
+use Schemastud\Frame\Registry\NavMetadata;
+use Schemastud\Frame\Registry\ResourceDefinition as FrameResourceDefinition;
 use Schemastud\Frame\Routing\ResourceRoutes;
 use Spatie\LaravelData\Data;
 use Splicewire\Beam\Docs\Tests\TestCase;
@@ -26,6 +31,7 @@ use Splicewire\Beam\Particle\Backing\DeclaresFilterVocabulary;
 use Splicewire\Beam\Particle\Backing\FilterVocabulary;
 use Splicewire\Beam\Particle\ParticleResource;
 use Splicewire\Beam\Particle\ParticleResourceRegistry;
+use Splicewire\Beam\Scribe\Strategies\ParticleUrlParameterStrategy;
 
 class RegistryRouteFilterData extends Data
 {
@@ -51,6 +57,23 @@ enum RegistryRouteChoice: string
 class RegistryRouteChoiceController
 {
     public function show(RegistryRouteChoice $choice): void {}
+}
+
+class RegistryRouteSummaryProvider implements ResourceSummaryProvider
+{
+    public static int $calls = 0;
+
+    public function summary(FrameResourceDefinition $resource): SummaryResponseData
+    {
+        self::$calls++;
+
+        return new SummaryResponseData($resource->key, $resource->nav->label, null, []);
+    }
+}
+
+class RegistryRouteUnrelatedResourceController
+{
+    public function show(string $resource): void {}
 }
 
 class RegistryRouteParametersTest extends TestCase
@@ -85,6 +108,68 @@ class RegistryRouteParametersTest extends TestCase
         ]);
 
         return (new Extractor($config))->processRoute($route, []);
+    }
+
+    public function test_summary_resource_selectors_use_registry_vocabulary_without_running_providers(): void
+    {
+        $particles = app(ParticleResourceRegistry::class);
+        $particles->register(new ParticleResource(
+            key: 'summarized-papers', backing: User::class, data: RegistryRouteFilterData::class,
+            label: 'Summarized papers', summaryProvider: RegistryRouteSummaryProvider::class,
+        ));
+        app(FrameResources::class)->register('plain-records', new FrameResourceDefinition(
+            key: 'plain-records', model: User::class, data: RegistryRouteFilterData::class,
+            creatable: false, query: null, editData: null, policy: null, form: 'bare',
+            nav: new NavMetadata('Plain records'), summaryProvider: null,
+        ));
+        $particles->loadRealmMap(['user' => ['summarized-papers', 'plain-records']]);
+        $resolutions = 0;
+        RegistryRouteSummaryProvider::$calls = 0;
+        $this->app->bind(RegistryRouteSummaryProvider::class, function () use (&$resolutions): RegistryRouteSummaryProvider {
+            $resolutions++;
+
+            return new RegistryRouteSummaryProvider;
+        });
+        ResourceRoutes::summary(at: 'custom-library/{resource}', names: 'library-metrics', defaults: ['realm' => 'user']);
+
+        $endpoint = $this->endpoint('/custom-library/summarized-papers/summary');
+        $this->assertSame('custom-library/{resource}/summary', $endpoint->uri);
+        $this->assertSame('user', $endpoint->route->defaults['realm']);
+        $this->assertSame(['resource'], array_keys($endpoint->urlParameters));
+        $parameter = $endpoint->urlParameters['resource'];
+        $keys = array_map(fn ($definition) => $definition->key, app(FrameResources::class)->all());
+        $this->assertSame($keys, $parameter->enumValues);
+        $this->assertContains('summarized-papers', $parameter->enumValues);
+        $this->assertContains('threads', $parameter->enumValues);
+        $this->assertContains('plain-records', $parameter->enumValues);
+        $this->assertContains($parameter->example, $keys);
+        $this->assertStringContainsString('registered resource key', $parameter->description);
+        $this->assertStringContainsString('not available for every resource', $parameter->description);
+
+        $output = new OutputEndpointData($endpoint->toArray());
+        $bridge = new DataSchemaGenerator(new DocumentationConfig([]));
+        $operation = $bridge->pathItem([], [], $output);
+        $this->assertSame($keys, $operation['parameters'][0]['schema']['enum']);
+        $this->assertSame('resource', $operation['parameters'][0]['name']);
+        $this->assertSame(0, $resolutions);
+        $this->assertSame(0, RegistryRouteSummaryProvider::$calls);
+
+        $this->getJson('/custom-library/summarized-papers/summary')->assertOk()->assertJsonPath('key', 'summarized-papers');
+        $this->getJson('/custom-library/plain-records/summary')->assertNotFound();
+        $this->getJson('/custom-library/unknown/summary')->assertNotFound();
+        $this->assertSame(1, $resolutions);
+        $this->assertSame(1, RegistryRouteSummaryProvider::$calls);
+    }
+
+    public function test_an_unrelated_resource_parameter_does_not_acquire_frame_vocabulary(): void
+    {
+        Route::get('unrelated/{resource}/summary', [RegistryRouteUnrelatedResourceController::class, 'show']);
+        $endpoint = $this->endpoint('/unrelated/papers/summary');
+        $strategy = new ParticleUrlParameterStrategy(new DocumentationConfig([]));
+
+        $this->assertNull($strategy($endpoint));
+        $this->assertArrayNotHasKey('dataPathParameterSchemas', $endpoint->custom);
+        $this->assertEmpty($endpoint->urlParameters['resource']->enumValues);
     }
 
     public function test_closure_routes_can_publish_native_enum_parameters(): void
