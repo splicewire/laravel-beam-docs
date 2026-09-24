@@ -69,7 +69,10 @@ class BeamDocsServiceProvider extends PackageServiceProvider
             package: 'splicewire/laravel-beam-docs',
             publishTags: ['beam-docs-config', 'beam-docs-migrations', 'beam-scribe'],
             migrates: true,
-            order: 220,
+            // After beam-ux (100), whose `beam_ux_entries.requirements` the shared adopt migration
+            // writes, and BEFORE tower (200): tower installs after every beam-* package because it
+            // ships the estate's cross-package ALTERs, and the host pins it as the last step.
+            order: 150,
             commands: ['splicewire:beam:docs:generate'],
         );
 
