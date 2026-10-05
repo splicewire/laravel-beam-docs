@@ -44,14 +44,14 @@ class DocsSeeder extends Seeder
             'segment' => config('beam.docs.segment', config('beam.ux.docs.segment', '/docs')),
             'parent_id' => BeamUxEntry::rootFor(BeamUxEntry::REALM_SITE)->getKey(),
             'requirements' => ['beam-docs'],
-        ]), namespace: config('beam.docs.root_namespace'));
+        ]), namespace: config('beam.docs.root_namespace'), origin: \Splicewire\Beam\Ux\Provenance\Provenance::package('splicewire/laravel-beam-docs'));
         if ($root === null) {
             return;
         }
         $api = $this->stub('api.mdx');
         $this->seedPage('docs-api', $api->body, array_merge($api->columns(), [
             'parent_id' => $root->getKey(),
-        ]));
+        ]), origin: \Splicewire\Beam\Ux\Provenance\Provenance::package('splicewire/laravel-beam-docs'));
     }
 
     public function existingRoot(): ?BeamUxEntry
