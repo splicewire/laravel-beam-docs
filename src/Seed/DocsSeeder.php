@@ -13,11 +13,22 @@ class DocsSeeder extends Seeder
 {
     use SeedsEntries;
 
+    /**
+     * The docs root and its packaged pages, then every declared docs source ({@see DocsSourcesSeeder}). One seed step
+     * per package: {@see \Splicewire\Beam\Seed\BeamSeedManifest} keys steps by package name, so the sources run
+     * from here rather than as a second registration, which would replace this one (docs-walkthrough DOCS-05).
+     */
     public function run(): void
     {
         if (! $this->canSeed()) {
             return;
         }
+        $this->seedRoot();
+        (new DocsSourcesSeeder)->run();
+    }
+
+    private function seedRoot(): void
+    {
         if (! Schema::hasColumn('beam_ux_entries', 'requirements')) {
             throw new RuntimeException('Run the Beam UX requirements migration before adopting documentation.');
         }

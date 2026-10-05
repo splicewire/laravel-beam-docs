@@ -25,7 +25,8 @@ use Splicewire\Beam\Write\AsSystemWriter;
  * each is the host contradicting its own config, and `splicewire:beam:seed` turns a throwing step into a non-zero exit
  * (beam-docs-satellite 46).
  *
- * Runs after {@see DocsSeeder} (order 26 against 25), so a source hung `under` the docs root finds it.
+ * Run by {@see DocsSeeder} after the docs root, so a source hung `under` the docs root finds it. It is not its own
+ * manifest step: the manifest keys steps by package, and a second registration replaced DocsSeeder (DOCS-05 L1 finding).
  */
 class DocsSourcesSeeder extends Seeder
 {

@@ -121,12 +121,22 @@ class DocsSourcesSeedTest extends TestCase
         $this->assertSame(0, BeamUxEntry::query()->count());
     }
 
-    public function test_the_step_is_in_the_seed_chain_after_the_docs_root(): void
+    public function test_the_docs_step_seeds_the_root_and_then_every_declared_source(): void
     {
-        $seeders = array_map(fn ($step) => $step->seeder, $this->app->make(BeamSeedManifest::class)->steps());
+        // One step per package: BeamSeedManifest keys steps by package name, and a second beam-docs registration
+        // REPLACED DocsSeeder, so docs-api stopped seeding (found by the L1 suite; the old assertion passed vacuously).
+        $steps = array_values(array_filter(
+            $this->app->make(BeamSeedManifest::class)->steps(),
+            fn ($step) => $step->package === 'splicewire/laravel-beam-docs',
+        ));
+        $this->assertSame([DocsSeeder::class], array_map(fn ($step) => $step->seeder, $steps));
 
-        $this->assertContains(DocsSourcesSeeder::class, $seeders);
-        $this->assertGreaterThan(array_search(DocsSeeder::class, $seeders, true), array_search(DocsSourcesSeeder::class, $seeders, true));
+        config(['beam.docs.sources' => [['path' => $this->dir, 'type' => 'page', 'ignore' => ['fragments/**']]]]);
+        (new DocsSeeder)->run();
+
+        $this->assertTrue(BeamUxEntry::query()->where('slug', 'docs')->exists(), 'The docs root still seeds.');
+        $this->assertTrue(BeamUxEntry::query()->where('slug', 'docs-api')->exists(), 'docs-api still seeds.');
+        $this->assertEqualsCanonicalizing(['using', 'deploy', 'scale'], BeamUxEntry::query()->whereNotIn('slug', ['site', 'docs', 'docs-api'])->pluck('slug')->all());
     }
 
     private function finding(): Finding
