@@ -9,6 +9,7 @@ use Splicewire\Beam\Docs\Http\DocsPageController;
 use Splicewire\Beam\Docs\Http\DocsReadAccess;
 use Splicewire\Beam\Docs\Publishing\Http\EnsurePublishingHost;
 use Splicewire\Beam\Docs\Seed\DocsSeeder;
+use Splicewire\Beam\Docs\Seed\DocsSourcesSeeder;
 use Splicewire\Beam\Seed\BeamSeedManifest;
 
 class DocsUxServiceProvider extends ServiceProvider
@@ -29,5 +30,7 @@ class DocsUxServiceProvider extends ServiceProvider
         });
         $this->publishes([__DIR__.'/../stubs/docs' => resource_path('beam-ux/docs')], 'beam-ux-docs');
         $this->app->make(BeamSeedManifest::class)->register('splicewire/laravel-beam-docs', DocsSeeder::class, order: 25);
+        // After the docs root, so a source hung `under` it finds it (docs-walkthrough DOCS-05).
+        $this->app->make(BeamSeedManifest::class)->register('splicewire/laravel-beam-docs', DocsSourcesSeeder::class, order: 26);
     }
 }

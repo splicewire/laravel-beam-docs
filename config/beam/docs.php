@@ -14,8 +14,10 @@ return [
     // absolute) is the scan root, so a file's namespace is its directory chain below it; `under` is the public path
     // or entry id top-level files hang from; `type` is the UxType for files whose directory names none; `product`
     // names the docs product the root belongs to (DOC-1). The `docs.unregistered` doctor audit FAILs on a file here
-    // with no row. The seed step that materializes these is DOCS-05; `ignore` globs arrive with it.
-    // [['path' => 'resources/js/content', 'under' => null, 'type' => 'page', 'product' => 'splicewire'], ...]
+    // with no row. The seed chain materializes them (DocsSourcesSeeder, DOCS-05) and fails when it cannot. `ignore` is a
+    // list of globs relative to `path` (`**` crosses directories, `*` does not) for include-only files that must never
+    // become rows, e.g. `fragments/**`.
+    // [['path' => 'resources/js/content', 'under' => null, 'type' => 'page', 'product' => 'splicewire', 'ignore' => []], ...]
     'sources' => [],
 
     'openapi' => [

@@ -21,7 +21,8 @@ use Splicewire\Beam\Ux\Type\UxType;
  * counts rows in the namespaces a source's files produce that no file backs (reported, not failed: a row may outlive
  * its file by design until DOCS-05's seed chain decides).
  *
- * The seed step that materializes the sources is DOCS-05; until it lands a host that declares a source FAILs here.
+ * {@see \Splicewire\Beam\Docs\Seed\DocsSourcesSeeder} (DOCS-05) materializes the sources in the seed chain, so this
+ * passes after a fresh seed. A source's `ignore` globs are honoured here exactly as the importer honours them.
  */
 class DocsUnregisteredAudit implements DoctorAudit
 {
@@ -53,7 +54,8 @@ class DocsUnregisteredAudit implements DoctorAudit
 
                 continue;
             }
-            $plan = $this->importer->plan($root, isset($source['type']) ? UxType::tryFrom((string) $source['type']) : null);
+            $ignore = array_values(array_map('strval', (array) ($source['ignore'] ?? [])));
+            $plan = $this->importer->plan($root, isset($source['type']) ? UxType::tryFrom((string) $source['type']) : null, $ignore);
             $matched += count($plan['matched']);
             foreach ($plan['unregistered'] as $relative) {
                 $unregistered[] = $this->display($root, $relative);
