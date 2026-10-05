@@ -75,7 +75,7 @@ class DocsDivergedAudit implements DoctorAudit
 
         $counts = sprintf('%d checked · %d diverged', $checked, count($diverged));
         if ($diverged !== []) {
-            return [Finding::warn(self::CHECK, "{$counts}. Edited since their origin last asserted them (re-assert is gated on OQ-D3): ".implode(', ', $diverged).'.')];
+            return [Finding::warn(self::CHECK, "{$counts}. Edited since their origin last asserted them, so a re-assert keeps them as they are: ".implode(', ', $diverged).'.')];
         }
 
         return [Finding::pass(self::CHECK, "{$counts}. Every seeded or imported row still matches what its origin asserted.")];
