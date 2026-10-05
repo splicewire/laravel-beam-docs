@@ -9,6 +9,15 @@ return [
     'root_slug' => 'docs',
     'root_namespace' => null,
 
+    // docs-walkthrough DM1 / DOCS-01: the content roots this host declares as docs. Each is a directory scanned the way
+    // `splicewire:beam:ux:register-from-disk {path} --under= --type=` scans it: `path` (relative to the base path, or
+    // absolute) is the scan root, so a file's namespace is its directory chain below it; `under` is the public path
+    // or entry id top-level files hang from; `type` is the UxType for files whose directory names none; `product`
+    // names the docs product the root belongs to (DOC-1). The `docs.unregistered` doctor audit FAILs on a file here
+    // with no row. The seed step that materializes these is DOCS-05; `ignore` globs arrive with it.
+    // [['path' => 'resources/js/content', 'under' => null, 'type' => 'page', 'product' => 'splicewire'], ...]
+    'sources' => [],
+
     'openapi' => [
         // Null preserves a published beam.core.openapi setting, then derives Scribe's local disk path.
         'artifact' => null,
