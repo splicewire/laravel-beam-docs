@@ -42,6 +42,15 @@ class FrontendContractsTest extends TestCase
         $this->assertArrayHasKey('pattern', $schema['properties']['version']);
     }
 
+    public function test_the_release_version_mapping_survives_config_cache(): void
+    {
+        // A host's config:cache var_exports every value; a closure here made the whole host uncacheable
+        // (launch 00 nomination 82a861ca). The mapping is a static-method string, and it still projects the pattern.
+        $mapping = config('data-schemas.validation_mapping')[\Splicewire\Beam\Docs\Publishing\Validation\ReleaseVersion::class];
+        $this->assertIsString($mapping);
+        $this->assertSame(['pattern' => \Splicewire\Beam\Docs\Publishing\Validation\ReleaseVersion::PATTERN], $mapping());
+    }
+
     public function test_release_version_validation_keeps_strict_end_of_input_and_build_metadata(): void
     {
         $this->assertSame('v1.2.3+build.4', PublishInputData::validateAndCreate(['version' => 'v1.2.3+build.4'])->version);

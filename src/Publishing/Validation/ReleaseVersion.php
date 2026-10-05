@@ -17,4 +17,13 @@ class ReleaseVersion extends Regex
     {
         parent::__construct('/'.self::PATTERN.'/');
     }
+
+    /**
+     * The JSON-Schema projection, named in `data-schemas.validation_mapping` by `'Class::method'` string rather than a
+     * closure, so a host's `config:cache` can serialize it (launch 00 nomination 82a861ca).
+     */
+    public static function jsonSchema(): array
+    {
+        return ['pattern' => self::PATTERN];
+    }
 }

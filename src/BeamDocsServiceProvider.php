@@ -33,7 +33,7 @@ class BeamDocsServiceProvider extends PackageServiceProvider
     public function packageRegistered(): void
     {
         config(['data-schemas.validation_mapping' => [
-            ReleaseVersion::class => static fn (): array => ['pattern' => ReleaseVersion::PATTERN],
+            ReleaseVersion::class => ReleaseVersion::class.'::jsonSchema',
             ...(array) config('data-schemas.validation_mapping', []),
         ]]);
 
