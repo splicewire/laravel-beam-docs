@@ -19,7 +19,7 @@ use Splicewire\Beam\Ux\Storage\StorageDriverResolver;
  */
 class DocsDivergedAuditTest extends TestCase
 {
-    private MemoryDriver $driver;
+    private DivergedMemoryDriver $driver;
 
     protected function setUp(): void
     {
@@ -29,7 +29,7 @@ class DocsDivergedAuditTest extends TestCase
         (require $ux.'/database/migrations/shared/create_beam_ux_entries_table.php.stub')->up();
         (require $ux.'/database/migrations/shared/add_provenance_to_beam_ux_entries_table.php.stub')->up();
 
-        $this->driver = new MemoryDriver;
+        $this->driver = new DivergedMemoryDriver;
         $this->app->instance(StorageDriverResolver::class, (new StorageDriverResolver)->register(StorageDriverResolver::DEFAULT, $this->driver));
     }
 
@@ -100,7 +100,7 @@ class DocsDivergedAuditTest extends TestCase
 }
 
 /** An in-memory particle store. */
-class MemoryDriver implements StorageDriver
+class DivergedMemoryDriver implements StorageDriver
 {
     /** @var array<string, StorageItem> */
     private array $items = [];
