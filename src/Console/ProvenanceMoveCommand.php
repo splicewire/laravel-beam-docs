@@ -3,6 +3,7 @@
 namespace Splicewire\Beam\Docs\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Splicewire\Beam\Ux\Models\BeamUxEntry;
 use Splicewire\Beam\Ux\Provenance\Provenance;
 use Splicewire\Beam\Ux\Storage\StorageDriverResolver;
@@ -43,12 +44,14 @@ class ProvenanceMoveCommand extends Command
         $toPackage = (string) ($move['to_package'] ?? '');
 
         if ($from === '' || $toPackage === '') {
-            $this->error('Nothing to move: set beam.docs.move.from (the old disk source) and beam.docs.move.to_package (the receiving package).');
+            $this->error("Nothing to move: set beam.docs.move.from to the moved rows' SCAN-ROOT-RELATIVE origin prefix (e.g. 'docs', matching disk:docs/..., NOT the base path 'resources/js/content/docs'), and beam.docs.move.to_package to the receiving package.");
 
             return self::FAILURE;
         }
 
-        $fromOrigin = Provenance::disk($from);          // e.g. disk:resources/js/content/docs
+        // `from` is the scan-root-relative prefix the rows actually carry, so disk origins read
+        // disk:<from>/... — e.g. from 'docs' => disk:docs/page/build.mdx. A base-path value would match 0 rows.
+        $fromOrigin = Provenance::disk($from);          // e.g. disk:docs
         $packageOrigin = Provenance::package($toPackage); // e.g. package:splicewire/tower
 
         $rows = BeamUxEntry::query()
@@ -74,12 +77,16 @@ class ProvenanceMoveCommand extends Command
             return self::SUCCESS;
         }
 
-        foreach ($restampable as $row) {
-            // Body and title are unchanged by a git mv, so asserted_hash moves with the row untouched;
-            // only the origin coordinate changes. Placement is site-owned and never touched here.
-            $row->origin = $packageOrigin;
-            $row->save();
-        }
+        // One transaction so a partway failure leaves no half-migrated set (review-r1); the run is also
+        // idempotent on re-run, and the live run is gated behind a pg_dump restore point.
+        DB::transaction(function () use ($restampable, $packageOrigin): void {
+            foreach ($restampable as $row) {
+                // Body and title are unchanged by a git mv, so asserted_hash moves with the row untouched;
+                // only the origin coordinate changes. Placement is site-owned and never touched here.
+                $row->origin = $packageOrigin;
+                $row->save();
+            }
+        });
 
         $this->info(count($restampable).' rows re-stamped to '.$packageOrigin.'.');
 
