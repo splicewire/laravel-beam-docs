@@ -20,8 +20,11 @@ class ProvenanceBackfillCommand extends Command
     {
         $plan = $backfill->plan((array) config('beam.docs.sources', []), self::history());
 
-        $this->table(['slug', 'namespace', 'origin', 'via'], array_map(fn (array $row): array => [
+        // The captured `{{ token }}` values of each TEMPLATE-matched row (review-r1): a token's line is the one place an
+        // edit could still read as pristine, so check these are machine-written (a URL, the brand) before applying.
+        $this->table(['slug', 'namespace', 'origin', 'via', 'token values'], array_map(fn (array $row): array => [
             $row['slug'], $row['namespace'] ?? '', $row['origin'] ?? '(unknown: left alone)', $row['via'],
+            implode('; ', array_map(fn (string $k, string $v): string => "{$k}={$v}", array_keys($row['tokens'] ?? []), $row['tokens'] ?? [])),
         ], $plan));
 
         $matched = count(array_filter($plan, fn (array $row): bool => $row['origin'] !== null));
