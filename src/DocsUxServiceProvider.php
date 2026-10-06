@@ -49,5 +49,7 @@ class DocsUxServiceProvider extends ServiceProvider
         });
         $this->publishes([__DIR__.'/../stubs/docs' => resource_path('beam-ux/docs')], 'beam-ux-docs');
         $this->app->make(BeamSeedManifest::class)->register('splicewire/laravel-beam-docs', DocsSeeder::class, order: 25);
+        // DOCS-06b: the stubs this package seeds, current and the prior one found in the field, for the provenance backfill.
+        $this->app->make(\Splicewire\Beam\Ux\Provenance\ProvenanceTemplates::class)->register(fn (): array => \Splicewire\Beam\Docs\Seed\DocsProvenanceTemplates::all());
     }
 }

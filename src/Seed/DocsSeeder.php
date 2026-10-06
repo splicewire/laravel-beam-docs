@@ -41,11 +41,14 @@ class DocsSeeder extends Seeder
             return;
         }
         $index = $this->stub('index.mdx');
-        $root ??= $this->seedPage((string) config('beam.docs.root_slug', 'docs'), $index->body, array_merge($index->columns(), [
+        // An existing root goes through seedPage() too: it is not re-created or moved, but a pristine package: root
+        // re-asserts to the current stub (DOCS-06b). Only creating it is conditional, as before.
+        $seeded = $this->seedPage((string) config('beam.docs.root_slug', 'docs'), $index->body, array_merge($index->columns(), [
             'segment' => config('beam.docs.segment', config('beam.ux.docs.segment', '/docs')),
             'parent_id' => BeamUxEntry::rootFor(BeamUxEntry::REALM_SITE)->getKey(),
             'requirements' => ['beam-docs'],
         ]), namespace: config('beam.docs.root_namespace'), origin: \Splicewire\Beam\Ux\Provenance\Provenance::package('splicewire/laravel-beam-docs'));
+        $root ??= $seeded;
         if ($root === null) {
             return;
         }

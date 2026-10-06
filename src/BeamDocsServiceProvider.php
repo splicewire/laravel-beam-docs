@@ -63,7 +63,7 @@ class BeamDocsServiceProvider extends PackageServiceProvider
             dirname(__DIR__).'/stubs/scribe/scribe.php' => config_path('scribe.php'),
         ], 'beam-scribe');
 
-        $this->commands([GenerateOpenApiCommand::class, PublishScalarCommand::class, ExportFrontendContractsCommand::class]);
+        $this->commands([GenerateOpenApiCommand::class, PublishScalarCommand::class, ExportFrontendContractsCommand::class, Console\ProvenanceBackfillCommand::class, Console\ProvenanceHistoryCommand::class]);
 
         $this->app->make(BeamInstallManifest::class)->register(
             package: 'splicewire/laravel-beam-docs',
