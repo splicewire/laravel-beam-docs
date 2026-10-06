@@ -7,6 +7,7 @@ use Spatie\TypeScriptTransformer\Transformers\EnumTransformer;
 use Spatie\TypeScriptTransformer\TypeScriptTransformer;
 use Spatie\TypeScriptTransformer\TypeScriptTransformerConfigFactory;
 use Spatie\TypeScriptTransformer\Writers\FlatModuleWriter;
+use Splicewire\Beam\Brand\BrandData;
 use Splicewire\Beam\Docs\Publishing\Data\PublicationData;
 use Splicewire\Beam\Docs\Publishing\Data\PublishInputData;
 
@@ -20,7 +21,9 @@ class DocsFrontendContracts
         $transformer = TypeScriptTransformer::create(
             TypeScriptTransformerConfigFactory::create()
                 ->outputDirectory($root)
-                ->transformDirectories($root.'/Publishing', $root.'/Data')
+                // laravel-beam's Brand directory too: DocsChromeData carries BrandData (DOCS-12), and a flat module cannot
+                // reference a type it does not declare.
+                ->transformDirectories($root.'/Publishing', $root.'/Data', dirname((string) (new \ReflectionClass(BrandData::class))->getFileName()))
                 ->transformer(new AttributedClassTransformer, new EnumTransformer)
                 ->writer(new FlatModuleWriter('types.ts'))
                 ->withoutManifest(),
