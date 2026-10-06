@@ -81,6 +81,11 @@ class DocsSeeder extends Seeder
         $published = resource_path('beam-ux/docs/'.$name);
         $path = is_file($published) ? $published : __DIR__.'/../../stubs/docs/'.$name;
 
-        return StubContent::parse(str_replace('{{ openapi_url }}', route('beam.openapi.yaml', absolute: false), (string) file_get_contents($path)));
+        // `{{ brand }}` is the host's brand (docs-walkthrough DOC-10, DOCS-11): the landing is titled for the product it
+        // documents, never "Documentation" with a note about who seeded it.
+        return StubContent::parse(strtr((string) file_get_contents($path), [
+            '{{ openapi_url }}' => route('beam.openapi.yaml', absolute: false),
+            '{{ brand }}' => (string) (config('beam.brand.name') ?: config('app.name')),
+        ]));
     }
 }
