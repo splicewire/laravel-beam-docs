@@ -55,4 +55,34 @@ class DocsSeedTest extends TestCase
         $this->assertSame(['auth'], $root->fresh()->access);
         $this->assertCount(2, $sources);
     }
+
+    /**
+     * docs-walkthrough DOC-12: a root whose reference subject is a PRODUCT with no product artifact publishes no reference
+     * surface, so the seeded `docs-api` row is created unpublished (`access: []`), never deleted; `self` stays published.
+     */
+    public function test_a_product_subject_with_no_artifact_seeds_the_reference_unpublished(): void
+    {
+        foreach (['product:splicewire/laravel-beam' => [], 'self' => null] as $subject => $access) {
+            $this->freshSeed($subject);
+
+            $this->assertSame($access, BeamUxEntry::where('slug', 'docs-api')->sole()->access, "subject {$subject}");
+        }
+    }
+
+    private function freshSeed(string $subject): void
+    {
+        \Illuminate\Support\Facades\Schema::dropIfExists('beam_ux_entries');
+        $ux = dirname((new \ReflectionClass(BeamUxEntry::class))->getFileName(), 3);
+        (require $ux.'/database/migrations/shared/create_beam_ux_entries_table.php.stub')->up();
+        Storage::fake('docs-artifacts');
+        config(['beam.ux.compile.disk' => 'docs-artifacts', 'beam.docs.openapi.subject' => $subject, 'beam.docs.openapi.artifact' => null]);
+        $driver = Mockery::mock(StorageDriver::class);
+        $driver->shouldReceive('write')->andReturnUsing(fn ($key, $body, $namespace) => new StorageItem((string) Str::uuid(), $body, $namespace, time()));
+        $this->app->instance(StorageDriverResolver::class, (new StorageDriverResolver)->register(StorageDriverResolver::DEFAULT, $driver));
+        $compiler = Mockery::mock(EntryBodyCompiler::class);
+        $compiler->shouldReceive('handles')->andReturnTrue();
+        $compiler->shouldReceive('compile')->andReturn('export default () => null;');
+        $this->app->instance(EntryBodyCompiler::class, $compiler);
+        (new DocsSeeder)->run();
+    }
 }

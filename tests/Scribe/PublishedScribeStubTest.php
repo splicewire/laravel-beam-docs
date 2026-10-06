@@ -75,7 +75,9 @@ class PublishedScribeStubTest extends TestCase
 
         $this->assertContains('api/*', $prefixes);
         $this->assertContains('api/frame/*', $prefixes);
-        $this->assertContains('api/beam/ux/*', $prefixes);
+        // The CMS API root is EXCLUDED, not prefixed: under `api/` it would otherwise come in through `api/*` (DOC-12).
+        $this->assertNotContains('api/beam/ux/*', $prefixes);
+        $this->assertContains('api/beam/ux/*', $this->stub()['routes'][0]['exclude']);
         $this->assertNotContains('frame/*', $prefixes, 'A host that moved its frame socket should not '.
             'still be publishing the default prefix it moved away from.');
     }
@@ -89,7 +91,18 @@ class PublishedScribeStubTest extends TestCase
         // The bare-install case ADR-0211 §7 was amended for: no `api/*` route exists, and the boundary
         // still has to describe something.
         $this->assertContains('frame/*', $prefixes);
-        $this->assertContains('beam/ux/*', $prefixes);
+        $this->assertNotContains('beam/ux/*', $prefixes);
+        $this->assertContains('beam/ux/*', $this->stub()['routes'][0]['exclude']);
+    }
+
+    /** DOC-12: the spec is titled from the host's brand, never the framework default "Laravel API". */
+    public function test_the_spec_is_titled_from_the_brand(): void
+    {
+        config(['app.name' => 'Laravel', 'beam.brand.name' => 'Beam']);
+        $this->assertSame('Beam API', $this->stub()['title']);
+
+        config(['beam.brand.name' => null]);
+        $this->assertSame('Laravel API', $this->stub()['title'], 'with no brand it falls back to app.name, which the audit then fails');
     }
 
     /**
@@ -106,7 +119,8 @@ class PublishedScribeStubTest extends TestCase
 
         $this->assertNotContains('/*', $prefixes);
         $this->assertContains('frame/*', $prefixes);
-        $this->assertContains('beam/ux/*', $prefixes);
+        $this->assertNotContains('/*', $this->stub()['routes'][0]['exclude'], 'a blanked api_root never excludes everything either');
+        $this->assertContains('beam/ux/*', $this->stub()['routes'][0]['exclude']);
     }
 
     /** @return array<string, mixed> */

@@ -21,6 +21,10 @@ return [
     'sources' => [],
 
     'openapi' => [
+        // What this root's API reference documents (docs-walkthrough DM7, DOC-12): `self`, this host's own routes (the
+        // starter default, C-7), or `product:vendor/name`. A product subject publishes no reference surface until
+        // `artifact` below names the product's spec; the `docs.reference-subject` audit holds it.
+        'subject' => env('BEAM_DOCS_OPENAPI_SUBJECT', 'self'),
         // Null preserves a published beam.core.openapi setting, then derives Scribe's local disk path.
         'artifact' => null,
         'middleware' => null,

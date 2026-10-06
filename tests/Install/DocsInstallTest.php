@@ -30,13 +30,15 @@ class DocsInstallTest extends TestCase
         // The exposure boundary is DERIVED, not the literal `['api/*']` this asserted before ADR-0211 §7
         // was amended: a bare beam install mounts no route under `api/*` at all, so that default made
         // every fresh host generate a spec describing nothing. `api/*` plus wherever this host's Frame
-        // socket and entry-body transport actually sit.
+        // socket sits. The entry-body transport under `beam.ux.api_root` used to be prefixed here too; docs-walkthrough
+        // DOC-12 (decided) makes it the CMS's own authoring API, never a public reference, so it is EXCLUDED instead
+        // (an exclusion also catches it where a host mounts it under `api/`).
         $this->assertSame(
-            ['api/*', 'frame/*', 'beam/ux/*'],
+            ['api/*', 'frame/*'],
             $config['routes'][0]['match']['prefixes'],
         );
         $this->assertSame([], $config['routes'][0]['include']);
-        $this->assertSame([], $config['routes'][0]['exclude']);
+        $this->assertSame(['beam/ux/*'], $config['routes'][0]['exclude']);
 
         // The particle-aware extraction, without which a generated spec is bare paths (ADR-0211 §9).
         $this->assertContains(GroupStrategy::class, $config['strategies']['metadata']);

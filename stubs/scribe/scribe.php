@@ -81,8 +81,10 @@ if (! class_exists(Defaults::class)) {
 }
 
 return [
-    // The HTML <title> for the generated documentation.
-    'title' => config('app.name').' API',
+    // The HTML <title> for the generated documentation, and the spec's `info.title`. From the host's BRAND
+    // (`config/beam/brand.php`, loaded before this file), never the framework default "Laravel API" (docs-walkthrough
+    // DOC-12; the `docs.reference-subject` audit fails that title). `app.name` is only the last fallback.
+    'title' => (config('beam.brand.name') ?: config('app.name')).' API',
 
     // A short description of your API. Included in the OpenAPI spec.
     'description' => '',
@@ -119,7 +121,6 @@ return [
                 'prefixes' => array_values(array_unique([
                     'api/*',
                     (trim((string) config('frame.route_prefix'), '/') ?: 'frame').'/*',
-                    (trim((string) config('beam.ux.api_root'), '/') ?: 'beam/ux').'/*',
                 ])),
 
                 'domains' => ['*'],
@@ -131,8 +132,12 @@ return [
             ],
 
             // Exclude these routes even if they matched the rules above.
+            //
+            // `beam.ux.api_root` is the CMS's own authoring API, never a public reference (docs-walkthrough DOC-12). It is
+            // EXCLUDED rather than only left out of `prefixes`, because a host that mounts it under `api/` (splicewire.test:
+            // `api/beam/ux`) would otherwise publish it through `api/*`. Same blanked-key guard as the prefixes above.
             'exclude' => [
-                // 'GET /health', 'admin.*'
+                (trim((string) config('beam.ux.api_root'), '/') ?: 'beam/ux').'/*',
             ],
         ],
     ],

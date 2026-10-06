@@ -5,6 +5,7 @@ namespace Splicewire\Beam\Docs\Seed;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Splicewire\Beam\Docs\OpenApi\ReferenceSubject;
 use Splicewire\Beam\Ux\Models\BeamUxEntry;
 use Splicewire\Beam\Ux\Seed\SeedsEntries;
 use Splicewire\Beam\Ux\Seed\StubContent;
@@ -49,9 +50,14 @@ class DocsSeeder extends Seeder
             return;
         }
         $api = $this->stub('api.mdx');
+        // docs-walkthrough DOC-12: a root documenting a PRODUCT with no product artifact publishes no reference surface,
+        // or this host's own routes would render as that product's API. The row is seeded unpublished (`access: []`),
+        // never skipped or deleted, so it is there for the day `beam.docs.openapi.artifact` names the product's spec. An
+        // existing row keeps its site-owned `access` (the Reasserter never re-asserts it).
+        $subject = ReferenceSubject::fromConfig();
         $this->seedPage('docs-api', $api->body, array_merge($api->columns(), [
             'parent_id' => $root->getKey(),
-        ]), origin: \Splicewire\Beam\Ux\Provenance\Provenance::package('splicewire/laravel-beam-docs'));
+        ], $subject->isProduct() && ! $subject->hasArtifact() ? ['access' => []] : []), origin: \Splicewire\Beam\Ux\Provenance\Provenance::package('splicewire/laravel-beam-docs'));
     }
 
     public function existingRoot(): ?BeamUxEntry
