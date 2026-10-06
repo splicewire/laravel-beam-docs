@@ -39,7 +39,7 @@ class DocsSourcesSeeder extends Seeder
         }
     }
 
-    /** @param  array{path?: string, under?: ?string, type?: ?string, ignore?: list<string>}  $source */
+    /** @param  array{path?: string, under?: ?string, type?: ?string, ignore?: list<string>, package?: ?string}  $source */
     private function register(array $source): void
     {
         $declared = (string) ($source['path'] ?? '');
@@ -51,11 +51,15 @@ class DocsSourcesSeeder extends Seeder
         $type = isset($source['type']) ? UxType::tryFrom((string) $source['type']) : null;
         $under = $this->under($source['under'] ?? null, $declared);
         $ignore = array_values(array_map('strval', (array) ($source['ignore'] ?? [])));
+        // A source may declare the package that ships it (DOCS-15, DM2): its rows then stamp
+        // package:<vendor> so they re-assert from the package. A host disk source declares none and
+        // stamps disk: as before (the package-default rule).
+        $package = isset($source['package']) && $source['package'] !== '' ? (string) $source['package'] : null;
 
         // The importer is resolved INSIDE the swap: resolving it first would close over the deny-by-default gate
         // (RegisterFromDiskCommand records why).
         $result = $this->asSystemWriter(
-            fn () => app(RegisterEntriesFromDisk::class)->scan($root, $under, $type, $ignore),
+            fn () => app(RegisterEntriesFromDisk::class)->scan($root, $under, $type, $ignore, $package),
         );
 
         if (($result['unresolved'] ?? []) !== []) {
