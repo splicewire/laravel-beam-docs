@@ -38,14 +38,41 @@ class StubHygieneTest extends TestCase
         $this->assertSame([], $found);
     }
 
+    /** review-r1: a brand with MDX- or YAML-significant characters titles the landing intact and breaks neither parse. */
+    public function test_a_brand_with_mdx_and_yaml_characters_is_escaped_for_each_context(): void
+    {
+        $bodies = $this->seedWithBrand('Acme {Cloud} <Beta>: #1 "pro"');
+
+        $root = BeamUxEntry::where('slug', 'docs')->sole();
+        $this->assertSame('Acme {Cloud} <Beta>: #1 "pro" documentation', $root->title);
+        $written = json_encode($bodies, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $this->assertStringContainsString('# Acme &#123;Cloud&#125; &lt;Beta&gt;: #1', $written);
+        $this->assertStringNotContainsString('# Acme {Cloud}', $written);
+    }
+
     public function test_the_seeded_landing_is_titled_from_the_brand(): void
+    {
+        $bodies = $this->seedWithBrand('Acme Cloud');
+
+        $root = BeamUxEntry::where('slug', 'docs')->sole();
+        $this->assertSame('Acme Cloud documentation', $root->title);
+        $written = json_encode($bodies, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $this->assertStringContainsString('# Acme Cloud documentation', $written);
+        $this->assertStringNotContainsString('{{ brand', $written);
+    }
+
+    /**
+     * Seed the docs root under `$brand` and return the bodies written to the store. The body store and compiler are faked
+     * as DocsSeedTest fakes them: these tests read the seeded ROW and the written source, not compiled bytes.
+     *
+     * @return list<mixed>
+     */
+    private function seedWithBrand(string $brand): array
     {
         $ux = dirname((new \ReflectionClass(BeamUxEntry::class))->getFileName(), 3);
         (require $ux.'/database/migrations/shared/create_beam_ux_entries_table.php.stub')->up();
-        config(['beam.brand.name' => 'Acme Cloud']);
-        // The body store and compiler are faked as DocsSeedTest fakes them: this test reads the seeded ROW, not its bytes.
+        config(['beam.brand.name' => $brand, 'beam.ux.compile.disk' => 'docs-artifacts']);
         Storage::fake('docs-artifacts');
-        config(['beam.ux.compile.disk' => 'docs-artifacts']);
         $bodies = [];
         $driver = Mockery::mock(StorageDriver::class);
         $driver->shouldReceive('write')->andReturnUsing(function ($key, $body, $namespace) use (&$bodies) {
@@ -61,10 +88,6 @@ class StubHygieneTest extends TestCase
 
         (new DocsSeeder)->run();
 
-        $root = BeamUxEntry::where('slug', 'docs')->sole();
-        $this->assertSame('Acme Cloud documentation', $root->title);
-        $written = json_encode($bodies, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $this->assertStringContainsString('# Acme Cloud documentation', $written);
-        $this->assertStringNotContainsString('{{ brand }}', $written);
+        return $bodies;
     }
 }

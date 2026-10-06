@@ -81,11 +81,17 @@ class DocsSeeder extends Seeder
         $published = resource_path('beam-ux/docs/'.$name);
         $path = is_file($published) ? $published : __DIR__.'/../../stubs/docs/'.$name;
 
-        // `{{ brand }}` is the host's brand (docs-walkthrough DOC-10, DOCS-11): the landing is titled for the product it
-        // documents, never "Documentation" with a note about who seeded it.
+        // The host's brand titles the landing (docs-walkthrough DOC-10, DOCS-11), never "Documentation" with a note about who
+        // seeded it. It is made safe for each place it lands (review-r1, build.qa): beam-mdx's FrontmatterParser reads a line
+        // as `key: value` up to the end of the line (no YAML quoting or escapes), so `{{ brand_title }}` is the brand on ONE
+        // line; `{{ brand }}` in the body has MDX's expression and JSX characters as entities. A brand with `{`, `<`, `:`,
+        // `#` or quotes then neither breaks the compile nor the frontmatter.
+        $brand = (string) (config('beam.brand.name') ?: config('app.name'));
+
         return StubContent::parse(strtr((string) file_get_contents($path), [
             '{{ openapi_url }}' => route('beam.openapi.yaml', absolute: false),
-            '{{ brand }}' => (string) (config('beam.brand.name') ?: config('app.name')),
+            '{{ brand_title }}' => preg_replace('/\s+/', ' ', $brand).' documentation',
+            '{{ brand }}' => strtr($brand, ['{' => '&#123;', '}' => '&#125;', '<' => '&lt;', '>' => '&gt;']),
         ]));
     }
 }
