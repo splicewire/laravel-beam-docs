@@ -2,6 +2,7 @@
 
 namespace Splicewire\Beam\Docs\Data;
 
+use Schemastud\DataSchemas\Attributes\Description;
 use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\LaravelData\Attributes\Validation\Max;
 use Spatie\LaravelData\Attributes\Validation\Min;
@@ -17,9 +18,9 @@ use Splicewire\Beam\Data\BeamData;
 class DocsSearchInputData extends BeamData
 {
     public function __construct(
-        #[Min(1), Max(200)]
+        #[Description('Words to search for in the documentation.'), Min(1), Max(200)]
         public string $q,
-        #[Max(500)]
+        #[Description('Documentation root URL that scopes the search.'), Max(500)]
         public string $root,
     ) {}
 }
