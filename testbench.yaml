@@ -1,0 +1,5 @@
+# The package's own testbench CLI (vendor/bin/testbench), which Beam JS beam-docs' contract check runs as its producer
+# (BEAM_DOCS_ARTISAN). Like tests/TestCase.php, it keeps no database cache: the testbench's in-memory sqlite has no
+# cache table, so laravel-data-schemas' DataConfig resolution (fail-loud since f03d8fe0) must not read one.
+env:
+  CACHE_STORE: array
