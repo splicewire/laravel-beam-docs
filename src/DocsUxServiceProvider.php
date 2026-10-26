@@ -7,21 +7,29 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Splicewire\Beam\Docs\Access\DocsEntryRequirement;
 use Splicewire\Beam\Docs\Chrome\DocsChrome;
-use Splicewire\Beam\Docs\Search\DocsSearchOp;
-use Splicewire\Beam\Facades\Particle;
 use Splicewire\Beam\Docs\Http\DocsPageController;
 use Splicewire\Beam\Docs\Http\DocsReadAccess;
 use Splicewire\Beam\Docs\Publishing\Http\EnsurePublishingHost;
+use Splicewire\Beam\Docs\Search\DocsSearchOp;
+use Splicewire\Beam\Docs\Seed\DocsProvenanceTemplates;
 use Splicewire\Beam\Docs\Seed\DocsSeeder;
+use Splicewire\Beam\Facades\Particle;
 use Splicewire\Beam\Seed\BeamSeedManifest;
 use Splicewire\Beam\Ux\Http\EntryPageProps;
+use Splicewire\Beam\Ux\Manifest\ManifestProfileResolver;
 use Splicewire\Beam\Ux\Models\BeamUxEntry;
+use Splicewire\Beam\Ux\Provenance\ProvenanceTemplates;
 
 class DocsUxServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->app->bind('beam.ux.requirement.beam-docs', DocsEntryRequirement::class);
+        // EP-42 S1: <ApiReference /> on this package's docs page is placeable where that page holds blocks. Offered only
+        // to MDX pages (laravel-beam-ux's MDX_SOURCES); a laravel-beam-ux that predates the tag offers it to nothing.
+        if (defined(ManifestProfileResolver::class.'::MDX_SOURCES')) {
+            $this->app->tag([Editor\ApiReferenceNodeSource::class], ManifestProfileResolver::MDX_SOURCES);
+        }
     }
 
     public function boot(): void
@@ -50,6 +58,6 @@ class DocsUxServiceProvider extends ServiceProvider
         $this->publishes([__DIR__.'/../stubs/docs' => resource_path('beam-ux/docs')], 'beam-ux-docs');
         $this->app->make(BeamSeedManifest::class)->register('splicewire/laravel-beam-docs', DocsSeeder::class, order: 25);
         // DOCS-06b: the stubs this package seeds, current and the prior one found in the field, for the provenance backfill.
-        $this->app->make(\Splicewire\Beam\Ux\Provenance\ProvenanceTemplates::class)->register(fn (): array => \Splicewire\Beam\Docs\Seed\DocsProvenanceTemplates::all());
+        $this->app->make(ProvenanceTemplates::class)->register(fn (): array => DocsProvenanceTemplates::all());
     }
 }
