@@ -74,10 +74,10 @@ class ParticleTitleStrategy extends Strategy
 
         $controller = $endpointData->method?->getDeclaringClass()->getName();
         if ($controller === ResourceDiscoveryController::class) {
-            return ['title' => "Discover reachable {$singular} routes", 'description' => "Routes on the {$singular} resource that this caller can reach."];
+            return ['title' => "Discover reachable {$singular} routes"];
         }
         if ($controller === HookEventCatalogController::class) {
-            return ['title' => "{$singular} webhook event types", 'description' => "Subscribable webhook event types for the {$singular} resource."];
+            return ['title' => "{$singular} webhook event types"];
         }
 
         $suffix = $relative === null ? '' : ' for a '.Str::headline($relative);

@@ -127,7 +127,12 @@ class EndpointTitleExtractionTest extends TestCase
             $route = (new Route(['GET'], 'calendars/reference', [
                 'uses' => $controller.'@index', 'controller' => $controller.'@index',
             ]))->defaults(ParticleController::RESOURCE, 'calendars');
-            $this->assertSame($expected, $this->extract($route)->metadata->title);
+            $endpoint = $this->extract($route);
+            $this->assertSame($expected, $endpoint->metadata->title);
+            $this->assertStringContainsString(
+                $controller === ResourceDiscoveryController::class ? 'Every route mounted on this resource' : 'Every event name a hook',
+                $endpoint->metadata->description,
+            );
         }
     }
 }
