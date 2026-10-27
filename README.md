@@ -35,3 +35,10 @@ Run `composer test`. The package's tests exercise generation and artifact routes
 `php artisan splicewire:beam:docs:export-contracts` prints a JSON map of generated frontend filenames and contents. It derives types through Spatie's TypeScript transformer and schemas through the configured `schemastud/laravel-data-schemas` generator. The publication DTO owns its status enum and timestamp nullability; `PublishInputData` owns the release field and validation. The release constraint uses one pattern shared by PHP validation and JSON Schema.
 
 To deliberately regenerate the frontend package, pass `--write --output=path/to/beam-docs/src/generated`. Without `--write`, the command never writes. With this package's development dependencies installed, `vendor/bin/testbench` can replace `artisan`; no host database or Scalar account is needed. The frontend's `contracts:check` compares the read-only export against its committed artifacts and fails on missing producer configuration or drift.
+
+### Docs theme
+
+Documentation contributes the optional `theme.docs` namespace to UX themes. The public entry renderer supplies the
+resolved `theme` page prop, and `DocsLayout` applies its docs palette through the scoped token sheet. Set fields such as
+`docs.paper`, `docs.darkPaper`, `docs.fontSans` and `docs.fontMono` on an ordinary theme entry to customize that layer.
+Shipped light and dark palette defaults match `beam-ux/tokens.css`; the body font inherits the host by default.
