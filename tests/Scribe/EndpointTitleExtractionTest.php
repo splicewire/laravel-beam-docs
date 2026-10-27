@@ -10,13 +10,16 @@ use Knuckles\Scribe\Config\Defaults;
 use Knuckles\Scribe\Extracting\Extractor;
 use Knuckles\Scribe\Tools\DocumentationConfig;
 use Schemastud\Frame\Http\Controllers\FrameResourceController;
+use Splicewire\Beam\Discovery\Http\ResourceDiscoveryController;
 use Splicewire\Beam\Docs\Tests\TestCase;
+use Splicewire\Beam\Http\Particle\ParticleController;
 use Splicewire\Beam\Http\Particle\ParticleOperationController;
 use Splicewire\Beam\Particle\OperationKind;
 use Splicewire\Beam\Particle\ParticleOperation;
 use Splicewire\Beam\Particle\ParticleOperationRegistry;
 use Splicewire\Beam\Scribe\Strategies\ParticleTitleStrategy;
 use Splicewire\Beam\Scribe\Strategies\RouteTitleStrategy;
+use Splicewire\Beam\Webhooks\Http\HookEventCatalogController;
 
 #[Endpoint('Launch a circuit')]
 class ExplicitOperationTitleController extends ParticleOperationController {}
@@ -112,6 +115,19 @@ class EndpointTitleExtractionTest extends TestCase
             $this->assertSame($title, $endpoint->metadata->title);
             $this->assertStringNotContainsString('~/Herd', $endpoint->metadata->description);
             $this->assertStringNotContainsString('widest of the three', $endpoint->metadata->description);
+        }
+    }
+
+    public function test_resource_discovery_and_hook_catalog_titles_name_the_stamped_resource(): void
+    {
+        foreach ([
+            ResourceDiscoveryController::class => 'Discover reachable Calendar routes',
+            HookEventCatalogController::class => 'Calendar webhook event types',
+        ] as $controller => $expected) {
+            $route = (new Route(['GET'], 'calendars/reference', [
+                'uses' => $controller.'@index', 'controller' => $controller.'@index',
+            ]))->defaults(ParticleController::RESOURCE, 'calendars');
+            $this->assertSame($expected, $this->extract($route)->metadata->title);
         }
     }
 }

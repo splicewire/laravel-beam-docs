@@ -215,4 +215,19 @@ class ParticleTitleStrategyTest extends TestCase
 
         $this->assertNull($this->strategy()(ExtractedEndpointData::fromRoute($route)));
     }
+
+    public function test_declared_operation_summary_and_description_override_kind_derivation(): void
+    {
+        app(ParticleOperationRegistry::class)->register(new ParticleOperation(
+            resource: 'calendars', name: 'sweep', kind: OperationKind::Task, handle: fn () => null,
+            summary: 'Find due scheduled actions', description: 'Materialize the due actions in the selected calendar.',
+        ));
+        $result = $this->strategy()($this->opEndpoint('calendars', 'sweep'));
+        $this->assertSame('Find due scheduled actions', $result['title']);
+        $this->assertSame('Materialize the due actions in the selected calendar.', $result['description']);
+        $endpoint = $this->opEndpoint('calendars', 'sweep');
+        $endpoint->metadata->title = 'An explicitly authored endpoint title';
+        $this->assertNull($this->strategy()($endpoint));
+
+    }
 }

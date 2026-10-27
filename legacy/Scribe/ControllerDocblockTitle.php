@@ -7,8 +7,10 @@ use Knuckles\Scribe\Extracting\Strategies\Metadata\GetFromDocBlocks;
 use Knuckles\Scribe\Extracting\Strategies\Metadata\GetFromMetadataAttributes;
 use Knuckles\Scribe\Tools\DocumentationConfig;
 use ReflectionMethod;
+use Splicewire\Beam\Discovery\Http\ResourceDiscoveryController;
 use Splicewire\Beam\Http\Particle\ParticleController;
 use Splicewire\Beam\Http\Particle\ParticleOperationController;
+use Splicewire\Beam\Webhooks\Http\HookEventCatalogController;
 
 /** Distinguish generic dispatcher comments from deliberately authored endpoint metadata. */
 final class ControllerDocblockTitle
@@ -17,7 +19,7 @@ final class ControllerDocblockTitle
     {
         if (! $endpoint->method instanceof ReflectionMethod || ! in_array(
             $endpoint->method->getDeclaringClass()->getName(),
-            [ParticleController::class, ParticleOperationController::class],
+            [ParticleController::class, ParticleOperationController::class, ResourceDiscoveryController::class, HookEventCatalogController::class],
             true,
         )) {
             return false;

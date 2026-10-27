@@ -5,6 +5,7 @@ namespace Splicewire\Beam\Scribe\Strategies;
 use Illuminate\Support\Str;
 use Knuckles\Camel\Extraction\ExtractedEndpointData;
 use Knuckles\Scribe\Extracting\Strategies\Strategy;
+use Splicewire\Beam\Discovery\Http\ResourceDiscoveryController;
 use Splicewire\Beam\Filters\ResourceFilterDefinition;
 use Splicewire\Beam\Http\Particle\ParticleController;
 use Splicewire\Beam\Http\Particle\ParticleOperationController;
@@ -12,6 +13,7 @@ use Splicewire\Beam\Particle\OperationKind;
 use Splicewire\Beam\Particle\ParticleOperationRegistry;
 use Splicewire\Beam\Particle\ParticleResourceRegistry;
 use Splicewire\Beam\Scribe\ControllerDocblockTitle;
+use Splicewire\Beam\Webhooks\Http\HookEventCatalogController;
 
 /**
  * Give a DISSOLVED particle route its Scribe title + description DECLARATIVELY, off the particle
@@ -70,6 +72,14 @@ class ParticleTitleStrategy extends Strategy
     {
         [$singular, $plural] = $this->resourceNouns($key);
 
+        $controller = $endpointData->method?->getDeclaringClass()->getName();
+        if ($controller === ResourceDiscoveryController::class) {
+            return ['title' => "Discover reachable {$singular} routes", 'description' => "Routes on the {$singular} resource that this caller can reach."];
+        }
+        if ($controller === HookEventCatalogController::class) {
+            return ['title' => "{$singular} webhook event types", 'description' => "Subscribable webhook event types for the {$singular} resource."];
+        }
+
         $suffix = $relative === null ? '' : ' for a '.Str::headline($relative);
         $scoped = $relative === null ? '' : ' Scoped through the parent '.Str::headline($relative).' binding.';
 
@@ -101,7 +111,8 @@ class ParticleTitleStrategy extends Strategy
         [$singular] = $this->resourceNouns($resource);
         $action = Str::headline($name);
 
-        $kind = app(ParticleOperationRegistry::class)->find($resource, $name)?->kind;
+        $operation = app(ParticleOperationRegistry::class)->find($resource, $name);
+        $kind = $operation?->kind;
 
         // A Read op is noun-shaped ("Media Download", "Context Scope Embeddings"); the mutating kinds
         // read as verbs ("Run Circuit", "Ingest Media").
@@ -117,7 +128,7 @@ class ParticleTitleStrategy extends Strategy
             null => "Operation `{$name}` on the `{$resource}` resource.",
         };
 
-        return ['title' => $title, 'description' => $description];
+        return ['title' => trim($operation?->summary ?? '') !== '' ? $operation->summary : $title, 'description' => $operation?->description ?? $description];
     }
 
     /**
