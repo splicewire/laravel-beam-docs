@@ -5,6 +5,7 @@ namespace Splicewire\Beam\Scribe\Strategies;
 use Knuckles\Camel\Extraction\ExtractedEndpointData;
 use Knuckles\Scribe\Extracting\Strategies\Strategy;
 use ReflectionClass;
+use Rushing\LaravelDataSchemasScribe\Support\SchemaExample;
 use Rushing\LaravelDataSchemasScribe\Support\StreamSchemas;
 use Schemastud\DataSchemas\Generators\Generator;
 use Spatie\LaravelData\Data;
@@ -12,6 +13,7 @@ use Splicewire\Beam\Http\Particle\ParticleController;
 use Splicewire\Beam\Http\Particle\ParticleOperationController;
 use Splicewire\Beam\Particle\ParticleOperationRegistry;
 use Splicewire\Beam\Particle\ParticleResourceRegistry;
+use Splicewire\Beam\Scribe\OpenApi\ParticleErrorsGenerator;
 
 /**
  * Drive a DISSOLVED particle route's response from the resource's declared read Data class.
@@ -55,10 +57,11 @@ class ParticleResponseStrategy extends Strategy
         // declaration the TypeScript route manifest resolves its hook type from, so the spec and the client
         // cannot disagree about what an operation returns (particle-doctrine-convergence ticket 04).
         if (isset($defaults[ParticleOperationController::RESOURCE], $defaults[ParticleOperationController::NAME])) {
-            $output = app(ParticleOperationRegistry::class)->find(
+            $operation = app(ParticleOperationRegistry::class)->find(
                 $defaults[ParticleOperationController::RESOURCE],
                 $defaults[ParticleOperationController::NAME],
-            )?->output;
+            );
+            $output = $operation?->output;
 
             // A Stream operation's `output:` is an event-name map, not a single response body — until
             // particle-doctrine-followups 14 it fell to the generic-object fallback and the endpoint was
@@ -68,10 +71,12 @@ class ParticleResponseStrategy extends Strategy
                 return StreamSchemas::stash($endpointData, $output);
             }
 
-            return $this->stash($endpointData, $this->operationSchema(
+            $responses = $this->stash($endpointData, $this->operationSchema(
                 $defaults[ParticleOperationController::RESOURCE],
                 $defaults[ParticleOperationController::NAME],
             ));
+
+            return [...$responses, ...$this->stashErrors($endpointData, $operation?->errors ?? [])];
         }
 
         $key = $defaults[ParticleController::RESOURCE] ?? null;
@@ -122,6 +127,48 @@ class ParticleResponseStrategy extends Strategy
             : $this->listEnvelope($itemSchema, $dataClass);
 
         return $this->stash($endpointData, $envelope);
+    }
+
+    /**
+     * An op's declared refusals (its `errors:` slot, music-capability-lift 34/35): each status is stashed beside the 200
+     * as its Data's BARE schema, the body the op writes, through the same generator chain, and its status is recorded
+     * under {@see ParticleErrorsGenerator::STASH} so the assembled document marks exactly these responses
+     * `x-particle-error`. That mark is the provenance a client generator types a refusal from; a status or a `$ref`
+     * alone never is. A Data the chain will not build is left undocumented, as the 200 arm treats its `output:`.
+     *
+     * @param  array<int, class-string>  $errors
+     * @return array<int, array<string, mixed>>
+     */
+    private function stashErrors(ExtractedEndpointData $endpointData, array $errors): array
+    {
+        $flat = [];
+        $generator = app(Generator::class)->forResponse();
+        foreach ($errors as $status => $class) {
+            if (! is_string($class) || ! is_subclass_of($class, Data::class)) {
+                continue;
+            }
+            $reflection = new ReflectionClass($class);
+            if (! $generator->canGenerate($reflection)) {
+                continue;
+            }
+            $schema = $generator->generate($reflection);
+
+            $responses = array_values(array_filter(
+                $endpointData->custom['dataResponseSchemas'] ?? [],
+                fn (array $response) => (int) $response['status'] !== (int) $status,
+            ));
+            $responses[] = ['status' => (int) $status, 'schema' => $schema, 'description' => null];
+            $endpointData->custom['dataResponseSchemas'] = $responses;
+            $endpointData->custom[ParticleErrorsGenerator::STASH][] = (int) $status;
+
+            $flat[] = [
+                'status' => (int) $status,
+                'content' => json_encode(SchemaExample::build($schema), JSON_PRETTY_PRINT),
+                'description' => '',
+            ];
+        }
+
+        return $flat;
     }
 
     /**
