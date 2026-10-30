@@ -131,10 +131,12 @@ class ParticleResponseStrategy extends Strategy
 
     /**
      * An op's declared refusals (its `errors:` slot, music-capability-lift 34/35): each status is stashed beside the 200
-     * as its Data's BARE schema, the body the op writes, through the same generator chain, and its status is recorded
-     * under {@see ParticleErrorsGenerator::STASH} so the assembled document marks exactly these responses
-     * `x-particle-error`. That mark is the provenance a client generator types a refusal from; a status or a `$ref`
-     * alone never is. A Data the chain will not build is left undocumented, as the 200 arm treats its `output:`.
+     * as its Data's BARE body (the body the op writes, no envelope), built through the same generator chain and promoted
+     * to a definition so it publishes as a component. The schema itself carries {@see ParticleErrorsGenerator::MARK}, and
+     * the status is recorded under {@see ParticleErrorsGenerator::STASH}; the assembled document marks a response only
+     * while its final schema still carries that mark. That is the provenance a client generator types a refusal from; a
+     * status or a `$ref` alone never is. A Data the chain will not build is left undocumented, as the 200 arm treats its
+     * `output:`.
      *
      * @param  array<int, class-string>  $errors
      * @return array<int, array<string, mixed>>
@@ -151,7 +153,11 @@ class ParticleResponseStrategy extends Strategy
             if (! $generator->canGenerate($reflection)) {
                 continue;
             }
-            $schema = $generator->generate($reflection);
+            // Promoted to a definition so the bridge publishes it as a component the response refs (a bare inline root
+            // would reach the document as an anonymous object no client can name), and marked INSIDE the declared schema:
+            // the provenance travels with this body, so a later writer that replaces the response drops the mark too.
+            [$ref, $defs] = $this->promoteToDef($generator->generate($reflection), $reflection);
+            $schema = ['$ref' => $ref, '$defs' => $defs, ParticleErrorsGenerator::MARK => true];
 
             $responses = array_values(array_filter(
                 $endpointData->custom['dataResponseSchemas'] ?? [],

@@ -6,13 +6,17 @@ use Illuminate\Routing\Route;
 use Knuckles\Camel\Extraction\ExtractedEndpointData;
 use Knuckles\Camel\Output\OutputEndpointData;
 use Knuckles\Scribe\Tools\DocumentationConfig;
+use Rushing\LaravelDataSchemasScribe\OpenApi\DataSchemaGenerator;
 use Spatie\LaravelData\Data;
 use Splicewire\Beam\Docs\Tests\TestCase;
 use Splicewire\Beam\Http\Particle\ParticleOperationController;
 use Splicewire\Beam\Particle\OperationKind;
 use Splicewire\Beam\Particle\ParticleOperation;
 use Splicewire\Beam\Particle\ParticleOperationRegistry;
+use Splicewire\Beam\Rendering\DeclaresDelivery;
+use Splicewire\Beam\Scribe\OpenApi\DeliveryGenerator;
 use Splicewire\Beam\Scribe\OpenApi\ParticleErrorsGenerator;
+use Splicewire\Beam\Scribe\Strategies\ParticleOperationDeliveryStrategy;
 use Splicewire\Beam\Scribe\Strategies\ParticleResponseStrategy;
 
 class OpSuccessFixtureData extends Data
@@ -28,6 +32,29 @@ class OpRefusalFixtureData extends Data
         public string $code,
         public string $detail,
     ) {}
+}
+
+class OpRefusalFixtureDelivery implements DeclaresDelivery
+{
+    public function mediaTypes(): array
+    {
+        return ['application/pdf'];
+    }
+
+    public function deliveryHeaders(): array
+    {
+        return [];
+    }
+
+    public function defaultFormat(): ?string
+    {
+        return 'pdf';
+    }
+
+    public function formats(): array
+    {
+        return ['pdf', 'html'];
+    }
 }
 
 /**
@@ -56,7 +83,7 @@ class ParticleOperationErrorsTest extends TestCase
     }
 
     /** @param  array<int, string>|null  $errors */
-    private function registerOp(?array $errors): void
+    private function registerOp(?array $errors, ?string $delivery = null): void
     {
         app(ParticleOperationRegistry::class)->register(new ParticleOperation(
             resource: 'catalogs',
@@ -65,6 +92,7 @@ class ParticleOperationErrorsTest extends TestCase
             handle: fn () => null,
             output: OpSuccessFixtureData::class,
             errors: $errors,
+            delivery: $delivery,
         ));
     }
 
@@ -83,9 +111,11 @@ class ParticleOperationErrorsTest extends TestCase
         $this->assertSame([200, 422], array_column($responses, 'status'));
         $stash = array_column($endpoint->custom['dataResponseSchemas'], null, 'status');
         $this->assertSame(['$ref' => '#/$defs/OpSuccessFixtureData'], $stash[200]['schema']['properties']['data']);
-        // Bare: the Data itself, no envelope, exactly the body the op writes.
-        $this->assertSame('OpRefusalFixtureData', $stash[422]['schema']['title']);
-        $this->assertSame(['code', 'detail'], $stash[422]['schema']['required']);
+        // Bare: the Data itself is the body (no envelope), promoted to a definition so it publishes as a component, and the
+        // provenance travels INSIDE the declared schema, so a response that replaces it loses the mark with it.
+        $this->assertSame('#/$defs/OpRefusalFixtureData', $stash[422]['schema']['$ref']);
+        $this->assertSame(['code', 'detail'], $stash[422]['schema']['$defs']['OpRefusalFixtureData']['required']);
+        $this->assertTrue($stash[422]['schema']['x-particle-error']);
         $this->assertSame([422], $endpoint->custom[ParticleErrorsGenerator::STASH]);
     }
 
@@ -99,33 +129,56 @@ class ParticleOperationErrorsTest extends TestCase
         $this->assertArrayNotHasKey(ParticleErrorsGenerator::STASH, $endpoint->custom);
     }
 
-    public function test_only_the_declared_statuses_are_marked_in_the_document(): void
+    /**
+     * The document as Scribe assembles it: the operation strategies stash during extraction, then the bridge's
+     * DataSchemaGenerator, DeliveryGenerator and ParticleErrorsGenerator write the path item in the host's order.
+     *
+     * @return array<string, mixed>
+     */
+    private function assemble(?array $errors, ?string $delivery = null): array
     {
-        $this->registerOp([422 => OpRefusalFixtureData::class]);
+        $this->registerOp($errors, $delivery);
         $endpoint = $this->endpoint();
         $this->strategy()($endpoint);
-        $pathItem = ['responses' => [
-            '200' => ['description' => 'ok'],
-            '422' => ['description' => 'refused'],
-            '500' => ['description' => 'a generic error the op did not declare'],
-        ]];
+        if ($delivery !== null) {
+            (new ParticleOperationDeliveryStrategy(new DocumentationConfig([])))($endpoint);
+        }
+        $output = OutputEndpointData::fromExtractedEndpointArray($endpoint->toArray());
+        $config = new DocumentationConfig([]);
+        $pathItem = (new DataSchemaGenerator($config))->pathItem(['responses' => []], [], $output);
+        $pathItem = (new DeliveryGenerator($config))->pathItem($pathItem, [], $output);
 
-        $marked = (new ParticleErrorsGenerator(new DocumentationConfig([])))
-            ->pathItem($pathItem, [], OutputEndpointData::fromExtractedEndpointArray($endpoint->toArray()));
-
-        $this->assertTrue($marked['responses']['422']['x-particle-error']);
-        $this->assertArrayNotHasKey('x-particle-error', $marked['responses']['200']);
-        $this->assertArrayNotHasKey('x-particle-error', $marked['responses']['500']);
+        return (new ParticleErrorsGenerator($config))->pathItem($pathItem, [], $output);
     }
 
-    public function test_an_endpoint_with_no_declared_refusal_is_left_untouched(): void
+    public function test_the_assembled_document_publishes_the_declared_refusal_as_a_marked_component(): void
     {
-        $this->registerOp(null);
-        $endpoint = $this->endpoint();
-        $this->strategy()($endpoint);
-        $pathItem = ['responses' => ['200' => ['description' => 'ok'], '422' => ['description' => 'validation']]];
+        $responses = $this->assemble([422 => OpRefusalFixtureData::class])['responses'];
 
-        $this->assertSame($pathItem, (new ParticleErrorsGenerator(new DocumentationConfig([])))
-            ->pathItem($pathItem, [], OutputEndpointData::fromExtractedEndpointArray($endpoint->toArray())));
+        $this->assertTrue($responses['422']['x-particle-error']);
+        $this->assertSame('#/components/schemas/OpRefusalFixtureData', $responses['422']['content']['application/json']['schema']['$ref']);
+        $this->assertArrayNotHasKey('x-particle-error', $responses['200']);
+    }
+
+    public function test_an_endpoint_with_no_declared_refusal_gains_no_mark(): void
+    {
+        $responses = $this->assemble(null)['responses'];
+
+        $this->assertArrayNotHasKey('422', $responses);
+        $this->assertArrayNotHasKey('x-particle-error', $responses['200']);
+    }
+
+    /**
+     * review-r1 14:14Z: an op may declare `errors: [422 => …]` AND a delivery with a format axis, whose generic format
+     * rejection DeliveryGenerator writes at 422 over the declared body. The final 422 is then NOT the declared refusal, so
+     * it must not be marked as one: the mark follows the declared schema's identity, never the status alone.
+     */
+    public function test_a_delivery_422_that_replaced_the_declared_refusal_is_not_marked(): void
+    {
+        $responses = $this->assemble([422 => OpRefusalFixtureData::class], OpRefusalFixtureDelivery::class)['responses'];
+
+        $this->assertArrayHasKey('422', $responses);
+        $this->assertArrayNotHasKey('x-particle-error', $responses['422']);
+        $this->assertNotSame('#/components/schemas/OpRefusalFixtureData', $responses['422']['content']['application/json']['schema']['$ref'] ?? null);
     }
 }
