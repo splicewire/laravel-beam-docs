@@ -69,6 +69,8 @@ class StubHygieneTest extends TestCase
      */
     private function seedWithBrand(string $brand): array
     {
+        (require dirname((new \ReflectionClass(\Splicewire\Beam\Models\BeamParticle::class))->getFileName(), 3).'/database/migrations/shared/create_beam_versions_table.php.stub')->up();
+        (require dirname((new \ReflectionClass(\Splicewire\Beam\Models\BeamParticle::class))->getFileName(), 3).'/database/migrations/shared/create_beam_particles_table.php.stub')->up();
         $ux = dirname((new \ReflectionClass(BeamUxEntry::class))->getFileName(), 3);
         (require $ux.'/database/migrations/shared/create_beam_ux_entries_table.php.stub')->up();
         config(['beam.brand.name' => $brand, 'beam.ux.compile.disk' => 'docs-artifacts']);

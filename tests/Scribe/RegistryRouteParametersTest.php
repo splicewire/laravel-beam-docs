@@ -81,6 +81,7 @@ class RegistryRouteParametersTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Metadata fixtures declare their narrow guest projection; production read gates remain active.
         foreach (['papers' => 'papers', 'journals' => 'papers', 'threads' => 'threads'] as $key => $resource) {
             app(ResourceRegistry::class)->registerDefinition(new ResourceDefinition(
                 key: $key, data: RegistryRouteFilterData::class, query: RegistryRouteQuery::class,
@@ -90,6 +91,7 @@ class RegistryRouteParametersTest extends TestCase
         foreach (['papers', 'threads'] as $key) {
             app(ParticleResourceRegistry::class)->register(new ParticleResource(
                 key: $key, backing: User::class, data: RegistryRouteFilterData::class,
+                publicRead: RegistryRouteFilterData::class,
                 query: RegistryRouteQuery::class, label: ucfirst($key),
             ));
         }
@@ -115,6 +117,7 @@ class RegistryRouteParametersTest extends TestCase
         $particles = app(ParticleResourceRegistry::class);
         $particles->register(new ParticleResource(
             key: 'summarized-papers', backing: User::class, data: RegistryRouteFilterData::class,
+            publicRead: RegistryRouteFilterData::class,
             label: 'Summarized papers', summaryProvider: RegistryRouteSummaryProvider::class,
         ));
         app(FrameResources::class)->register('plain-records', new FrameResourceDefinition(
@@ -159,6 +162,16 @@ class RegistryRouteParametersTest extends TestCase
         $this->getJson('/custom-library/unknown/summary')->assertNotFound();
         $this->assertSame(1, $resolutions);
         $this->assertSame(1, RegistryRouteSummaryProvider::$calls);
+    }
+
+    public function test_guest_filter_metadata_requires_an_explicit_public_read_projection(): void
+    {
+        app(ParticleResourceRegistry::class)->register(new ParticleResource(
+            key: 'private-papers', backing: User::class, data: RegistryRouteFilterData::class,
+            query: RegistryRouteQuery::class, label: 'Private papers',
+        ));
+
+        $this->getJson('/frame/resources/private-papers/filters/schema')->assertForbidden();
     }
 
     public function test_an_unrelated_resource_parameter_does_not_acquire_frame_vocabulary(): void
@@ -214,10 +227,12 @@ class RegistryRouteParametersTest extends TestCase
     public function test_schema_resources_include_declarations_without_a_filter_dto(): void
     {
         app(ParticleResourceRegistry::class)->register(new ParticleResource(
-            key: 'queue', backing: RegistryRouteBacking::class, data: RegistryRouteFilterData::class, readOnly: true, label: 'Queue',
+            key: 'queue', backing: RegistryRouteBacking::class, data: RegistryRouteFilterData::class,
+            publicRead: RegistryRouteFilterData::class, readOnly: true, label: 'Queue',
         ));
         app(ParticleResourceRegistry::class)->register(new ParticleResource(
-            key: 'unfiltered', backing: User::class, data: RegistryRouteFilterData::class, label: 'Unfiltered',
+            key: 'unfiltered', backing: User::class, data: RegistryRouteFilterData::class,
+            publicRead: RegistryRouteFilterData::class, label: 'Unfiltered',
         ));
         $schema = $this->endpoint('/frame/resources/queue/filters/schema');
         $this->assertContains('queue', $schema->urlParameters['resource']->enumValues);
@@ -234,7 +249,8 @@ class RegistryRouteParametersTest extends TestCase
     public function test_options_document_handles_without_resolving_option_rows(): void
     {
         app(ParticleResourceRegistry::class)->register(new ParticleResource(
-            key: 'queue', backing: RegistryRouteBacking::class, data: RegistryRouteFilterData::class, readOnly: true, label: 'Queue',
+            key: 'queue', backing: RegistryRouteBacking::class, data: RegistryRouteFilterData::class,
+            publicRead: RegistryRouteFilterData::class, readOnly: true, label: 'Queue',
         ));
         $resolutions = 0;
         app(OptionsRegistry::class)->register('paper-owners', function () use (&$resolutions): array {
