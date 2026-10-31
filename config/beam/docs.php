@@ -20,6 +20,15 @@ return [
     // [['path' => 'resources/js/content', 'under' => null, 'type' => 'page', 'product' => 'splicewire', 'ignore' => []], ...]
     'sources' => [],
 
+    // Literal authoring-tool tokens, checked in stored bodies and declared source files.
+    'lint' => [
+        'forbidden' => [
+            'XDEBUG_MODE' => 'fail',
+            'herd php' => 'warn',
+            'herd composer' => 'warn',
+        ],
+    ],
+
     'openapi' => [
         // What this root's API reference documents (docs-walkthrough DM7, DOC-12): `self`, this host's own routes (the
         // starter default, C-7), or `product:vendor/name`. A product subject publishes no reference surface until

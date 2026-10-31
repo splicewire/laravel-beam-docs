@@ -17,6 +17,8 @@ class DocsSeedTest extends TestCase
 {
     public function test_fresh_docs_seed_compiles_bodies_and_reseeding_preserves_authored_rows(): void
     {
+        (require dirname((new \ReflectionClass(\Splicewire\Beam\Models\BeamParticle::class))->getFileName(), 3).'/database/migrations/shared/create_beam_versions_table.php.stub')->up();
+        (require dirname((new \ReflectionClass(\Splicewire\Beam\Models\BeamParticle::class))->getFileName(), 3).'/database/migrations/shared/create_beam_particles_table.php.stub')->up();
         $ux = dirname((new \ReflectionClass(BeamUxEntry::class))->getFileName(), 3);
         (require $ux.'/database/migrations/shared/create_beam_ux_entries_table.php.stub')->up();
         Storage::fake('docs-artifacts');
@@ -72,6 +74,8 @@ class DocsSeedTest extends TestCase
     private function freshSeed(string $subject): void
     {
         \Illuminate\Support\Facades\Schema::dropIfExists('beam_ux_entries');
+        (require dirname((new \ReflectionClass(\Splicewire\Beam\Models\BeamParticle::class))->getFileName(), 3).'/database/migrations/shared/create_beam_versions_table.php.stub')->up();
+        (require dirname((new \ReflectionClass(\Splicewire\Beam\Models\BeamParticle::class))->getFileName(), 3).'/database/migrations/shared/create_beam_particles_table.php.stub')->up();
         $ux = dirname((new \ReflectionClass(BeamUxEntry::class))->getFileName(), 3);
         (require $ux.'/database/migrations/shared/create_beam_ux_entries_table.php.stub')->up();
         Storage::fake('docs-artifacts');

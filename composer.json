@@ -118,6 +118,10 @@
         },
         {
             "type": "git",
+            "url": "https://github.com/schemastud/laravel-blockdoc.git"
+        },
+        {
+            "type": "git",
             "url": "https://github.com/schemastud/laravel-frame.git"
         },
         {
@@ -147,6 +151,10 @@
         {
             "type": "git",
             "url": "https://github.com/splicewire/laravel-beam.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/splicewire/laravel-beam-analytics.git"
         },
         {
             "type": "git",
