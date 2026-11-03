@@ -69,6 +69,8 @@ class DocsUxServiceProvider extends ServiceProvider
             // package's other docs routes, never at the public page path — a package route there
             // would shadow the host catch-all that serves the pages (ADR-0209 §2).
             Route::get('beam/docs/registries/{root}', [RegistryDocsController::class, 'show'])->name('beam.docs.registries.show');
+            // registry-docs ticket 03: the live registrant panel (host-variant, never committed).
+            Route::get('beam/docs/registries/{root}/registrants', [RegistryDocsController::class, 'registrants'])->name('beam.docs.registries.registrants');
         });
         // docs.search (DOCS-14, DM6): a guest reads public docs as a guest, so it mounts beside the docs pages' own gate
         // (DocsReadAccess), never in a tenant API group; the throttle bounds a public endpoint. Every row is gated per

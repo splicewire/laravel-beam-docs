@@ -13,6 +13,16 @@ use Splicewire\Beam\Docs\Tests\TestCase;
  */
 class FamilyRegistryDocSourcesTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // The provider's own booted() pass already contributed rows for whatever family packages
+        // this install carries (splicewire/laravel-beam ships registry pages since ticket 03); each
+        // test asserts one contributor run over its fixtures alone, from no rows.
+        config(['beam.docs.sources' => []]);
+    }
+
     private function withPackages(array $packages): FamilyRegistryDocSources
     {
         $fake = new class($packages) extends FamilyPackages

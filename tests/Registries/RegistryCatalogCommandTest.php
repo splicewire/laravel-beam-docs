@@ -3,6 +3,7 @@
 namespace Splicewire\Beam\Docs\Tests\Registries;
 
 use Illuminate\Filesystem\Filesystem;
+use Splicewire\Beam\Docs\Registries\FamilyPackages;
 use Splicewire\Beam\Docs\Registries\RegistryDocsCatalog;
 use Splicewire\Beam\Docs\Tests\TestCase;
 
@@ -28,6 +29,17 @@ class RegistryCatalogCommandTest extends TestCase
         foreach (['alpha/src/AlphaRegistry.php', 'alpha/src/AlphaExternalRegistry.php', 'alpha/src/AlphaExemptRegistry.php', 'alpha/src/AlphaOverrideRegistry.php', 'beta/src/BetaRegistry.php'] as $file) {
             require_once $this->fixtures.'/'.$file;
         }
+
+        // The package seam narrowed to the fixtures: installed family packages ship real registry
+        // pages (splicewire/laravel-beam since ticket 03) whose roots this fixture census does not
+        // declare, and this test is about the command over the fixtures alone.
+        $this->app->instance(FamilyPackages::class, new class extends FamilyPackages
+        {
+            public function installed(): array
+            {
+                return [];
+            }
+        });
 
         config([
             // The census seam: the scan walks exactly these roots, so the census is the fixtures'
@@ -106,6 +118,38 @@ class RegistryCatalogCommandTest extends TestCase
         $this->assertSame('external', $rows['fixture.alpha.external']->kind);
         $this->assertSame('/docs/registries/fixture.alpha', $rows['fixture.alpha']->url);
         $this->assertNull($rows['fixture.beta']->kind);
+    }
+
+    public function test_a_cluster_page_in_the_owning_package_is_catalogued_not_a_dead_root(): void
+    {
+        $catalog = $this->regenerate('clusters.json');
+
+        $this->assertArrayNotHasKey('fixture', $catalog['roots'], 'a cluster is not a root');
+        $this->assertSame(['fixture' => [
+            'owner' => 'splicewire/fixture-alpha',
+            'path' => 'docs/registries/fixture.mdx',
+            'url' => '/docs/registries/fixture',
+        ]], $catalog['clusters']);
+    }
+
+    public function test_a_cluster_page_outside_the_owning_package_fails_the_run(): void
+    {
+        // beta declares one root under `fixture.`, alpha four: alpha owns the cluster.
+        $this->temporaryPackage('splicewire/fixture-beta-shadow', ['fixture.mdx' => "# not beta's\n"], shadows: 'splicewire/fixture-beta');
+
+        $this->artisan('splicewire:beam:docs:registries:catalog', ['--write-to' => $this->out.'/cluster-thief.json'])
+            ->expectsOutputToContain('cluster is owned by splicewire/fixture-alpha')
+            ->assertFailed();
+    }
+
+    public function test_the_cluster_tiebreak_is_the_root_equal_to_the_prefix_then_the_first_name(): void
+    {
+        $census = app(\Splicewire\Beam\Docs\Registries\RegistryCensus::class);
+
+        $this->assertSame('b/pkg', $census->clusterOwner('c', ['c' => 'b/pkg', 'c.one' => 'b/pkg', 'c.two' => 'a/pkg', 'c.three' => 'a/pkg']), 'tied 2–2, the prefix root counted as a member: b declares `c` itself and wins the tie');
+        $this->assertSame('a/pkg', $census->clusterOwner('c', ['c' => 'b/pkg', 'c.one' => 'a/pkg', 'c.two' => 'a/pkg']), 'most roots wins before any tiebreak');
+        $this->assertSame('a/pkg', $census->clusterOwner('c', ['c.one' => 'b/pkg', 'c.two' => 'a/pkg']), 'tied, no prefix root: the first vendor/name');
+        $this->assertNull($census->clusterOwner('d', ['c.one' => 'a/pkg']));
     }
 
     public function test_a_dead_root_in_a_manifest_fails_the_run_and_writes_nothing(): void

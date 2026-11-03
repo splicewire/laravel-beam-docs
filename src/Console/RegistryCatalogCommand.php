@@ -47,10 +47,11 @@ class RegistryCatalogCommand extends Command
         }
 
         $known = $packages->forCatalog();
-        $owners = $this->owners($entries, $known);
+        $owners = $census->owners($entries, $known);
         $errors = [];
         $manifests = [];
         $pages = [];
+        $clusters = [];
 
         foreach ($known as $name => $base) {
             $dir = $base.'/docs/registries';
@@ -80,8 +81,14 @@ class RegistryCatalogCommand extends Command
             foreach (glob($dir.'/*.mdx') ?: [] as $file) {
                 $root = basename($file, '.mdx');
 
-                if (! isset($entries[$root])) {
-                    $errors[] = "{$name}: docs/registries/".basename($file).' names no declared root (dead root) — the filename is the dotted root, verbatim';
+                if (! isset($entries[$root]) && ($clusterOwner = $census->clusterOwner($root, $owners)) !== null) {
+                    // A cluster page (ruling 7): the filename is a prefix shared by declared roots,
+                    // and it lives in the package that owns the cluster — never a dead root.
+                    $clusterOwner === $name
+                        ? $clusters[$root] = ['owner' => $name, 'path' => 'docs/registries/'.basename($file)]
+                        : $errors[] = "{$name}: docs/registries/".basename($file)." is a cluster page, but the `{$root}` cluster is owned by {$clusterOwner} (most roots, then the root equal to the prefix, then the first vendor/name — ruling 7)";
+                } elseif (! isset($entries[$root])) {
+                    $errors[] = "{$name}: docs/registries/".basename($file).' names no declared root or cluster prefix (dead root) — the filename is the dotted root, verbatim';
                 } elseif (($owners[$root] ?? null) !== $name) {
                     $errors[] = "{$name}: docs/registries/".basename($file).' documents a root declared by '.($owners[$root] ?? 'no known package').' — pages live in the declaring package (ruling 2)';
                 } else {
@@ -126,45 +133,27 @@ class RegistryCatalogCommand extends Command
             mkdir(dirname($path), 0755, true);
         }
 
+        ksort($clusters);
+
+        foreach ($clusters as $prefix => $cluster) {
+            $clusters[$prefix]['url'] = $publicBase.$prefix;
+        }
+
         file_put_contents($path, json_encode([
             'version' => 1,
             'generated_by' => $this->getName(),
             'roots' => $rows,
+            // Only where a cluster page exists, so a catalog without one is byte-identical to before.
+            ...($clusters === [] ? [] : ['clusters' => $clusters]),
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
 
         $catalog->fresh();
 
         $this->info(sprintf(
-            'Catalog written to %s: %d roots (%d pages, %d external, %d exempt, %d uncovered).',
-            $path, count($rows), $counts['page'], $counts['external'], $counts['exempt'], $counts['uncovered'],
+            'Catalog written to %s: %d roots (%d pages, %d external, %d exempt, %d uncovered), %d cluster page(s).',
+            $path, count($rows), $counts['page'], $counts['external'], $counts['exempt'], $counts['uncovered'], count($clusters),
         ));
 
         return self::SUCCESS;
-    }
-
-    /**
-     * @param  array<string, array{class: class-string, file: string}>  $entries
-     * @param  array<string, string>  $packages
-     * @return array<string, ?string> root => owning package name (longest install-path prefix wins), null when unowned
-     */
-    private function owners(array $entries, array $packages): array
-    {
-        uasort($packages, fn (string $a, string $b) => strlen($b) <=> strlen($a));
-        $owners = [];
-
-        foreach ($entries as $root => $declaration) {
-            $owners[$root] = null;
-            $file = realpath($declaration['file']) ?: $declaration['file'];
-
-            foreach ($packages as $name => $base) {
-                if (str_starts_with($file, rtrim($base, '/').'/')) {
-                    $owners[$root] = $name;
-
-                    break;
-                }
-            }
-        }
-
-        return $owners;
     }
 }

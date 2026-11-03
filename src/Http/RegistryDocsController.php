@@ -4,8 +4,10 @@ namespace Splicewire\Beam\Docs\Http;
 
 use Rushing\LaravelDataSchemasScribe\Attributes\ResponseFromData;
 use Splicewire\Beam\Docs\Data\RegistryDocUnavailableData;
+use Splicewire\Beam\Docs\Data\RegistryRegistrantsData;
 use Splicewire\Beam\Docs\Registries\RegistryDocsAvailability;
 use Splicewire\Beam\Docs\Registries\RegistryDocsCatalog;
+use Splicewire\Beam\Docs\Registries\RegistryRegistrants;
 use Splicewire\Beam\Ux\Docs\DocsLinkResolver;
 
 /**
@@ -49,5 +51,20 @@ class RegistryDocsController
             reason: $row->reason,
             pointer: $row->pointer,
         ))->toArray());
+    }
+
+    /**
+     * The registrant panel (registry-docs ticket 03): host-variant, so answered live and never
+     * committed to a page. Conditional on `RecordsRegistrants` with the graceful null
+     * {@see RegistryRegistrantsData} spells out; every read filtered. Any well-formed root answers
+     * 200 — a root this host does not describe carries the "not available on this host" note.
+     */
+    #[ResponseFromData(RegistryRegistrantsData::class)]
+    public function registrants(string $root): mixed
+    {
+        abort_unless(config('beam.docs.enabled', true), 404);
+        abort_if($root === '', 404);
+
+        return response()->json(app(RegistryRegistrants::class)->for($root)->toArray());
     }
 }

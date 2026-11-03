@@ -34,4 +34,75 @@ class RegistryCensus
 
         return $entries;
     }
+
+    /**
+     * Which known package DECLARES each root — by the declaring file's path, longest install-path
+     * prefix winning (a package nested inside another's tree is the more specific owner). Shared by
+     * the catalog and scaffold commands so ownership is computed one way, never guessed.
+     *
+     * @param  array<string, array{class: class-string, file: string}>  $entries  {@see entries()}
+     * @param  array<string, string>  $packages  package name => absolute install path
+     * @return array<string, ?string> root => owning package name, null when unowned
+     */
+    public function owners(array $entries, array $packages): array
+    {
+        uasort($packages, fn (string $a, string $b) => strlen($b) <=> strlen($a));
+        $owners = [];
+
+        foreach ($entries as $root => $declaration) {
+            $owners[$root] = null;
+            $file = realpath($declaration['file']) ?: $declaration['file'];
+
+            foreach ($packages as $name => $base) {
+                if (str_starts_with($file, rtrim($base, '/').'/')) {
+                    $owners[$root] = $name;
+
+                    break;
+                }
+            }
+        }
+
+        return $owners;
+    }
+
+    /**
+     * The package that owns the cluster `$prefix` (registry-docs ticket 01, ruling 7), or null when
+     * no owned declared root is in it — the root equal to the prefix counts as a member. Ownership: the package declaring the most roots under the
+     * prefix; tiebreak, deterministic — first the package declaring the root equal to the prefix
+     * itself, else the lexicographically first `vendor/name` among the tied.
+     *
+     * @param  array<string, ?string>  $owners  {@see owners()}
+     */
+    public function clusterOwner(string $prefix, array $owners): ?string
+    {
+        if ($prefix === '') {
+            return null;
+        }
+
+        $tally = [];
+
+        foreach ($owners as $root => $owner) {
+            if ($owner !== null && ((string) $root === $prefix || str_starts_with((string) $root, $prefix.'.'))) {
+                $tally[$owner] = ($tally[$owner] ?? 0) + 1;
+            }
+        }
+
+        if ($tally === []) {
+            return null;
+        }
+
+        $tied = array_keys($tally, max($tally), true);
+
+        if (count($tied) === 1) {
+            return $tied[0];
+        }
+
+        if (($owners[$prefix] ?? null) !== null && in_array($owners[$prefix], $tied, true)) {
+            return $owners[$prefix];
+        }
+
+        sort($tied);
+
+        return $tied[0];
+    }
 }
