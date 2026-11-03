@@ -2,9 +2,8 @@
 
 namespace Splicewire\Beam\Docs\Registries;
 
+use Rushing\Popcorn\Registries\Docs\RegistryFacts;
 use Rushing\Popcorn\Registries\IsRegistry;
-use Rushing\Popcorn\Registries\OnKeyDuplicate;
-use Rushing\Popcorn\Registries\PopulationRequirement;
 
 /**
  * The generated-facts block of a registry page (registry-docs ticket 01, ruling 6): DECLARATION
@@ -19,40 +18,21 @@ use Rushing\Popcorn\Registries\PopulationRequirement;
  * The markers are MDX expression comments (`{/* … *\/}`), not HTML comments: MDX 3 — what
  * `@splicewire/beam-mdx` compiles with — rejects `<!-- -->` as a syntax error.
  *
- * Framework-free on purpose (plain PHP over popcorn's attribute): ticket 04's package-tier drift
- * check is to run in framework-free `rushing/php-popcorn`, and the renderer must be liftable there
- * as-is so both sides render byte-identical blocks.
+ * The block contract itself — the markers, {@see render()} and {@see extract()} — is popcorn's
+ * {@see RegistryFacts}, which ticket 04's package-tier drift check reads; those four members only
+ * delegate, so the writer and the checker can never render two different blocks. What stays here
+ * is the writer's half: {@see stub()}, {@see replaceIn()} and the description seed.
  */
 final class RegistryFactsBlock
 {
-    public const START = '{/* registry-facts:start — generated from the #[IsRegistry] declaration by `splicewire:beam:docs:registries:scaffold`. Rerun the command; do not edit between these markers. */}';
+    public const START = RegistryFacts::START;
 
-    public const END = '{/* registry-facts:end */}';
+    public const END = RegistryFacts::END;
 
-    /** The block, markers included, for one declaration. */
+    /** The block, markers included, for one declaration — {@see RegistryFacts::render()}. */
     public static function render(IsRegistry $declaration, string $declaringClass): string
     {
-        $rows = [
-            ['Root', self::code($declaration->root)],
-            ['Entries', $declaration->entryType === 'mixed' ? 'any value (`mixed`)' : self::code(ltrim($declaration->entryType, '\\'))],
-            ['Duplicate keys', self::duplicates($declaration->onKeyDuplicate)],
-            ['Population', self::population($declaration->populationRequirement)],
-            ['Order', self::code((string) $declaration->order).' (display order, ascending)'],
-            ['Declared by', self::code(ltrim($declaringClass, '\\'))],
-        ];
-
-        // A CommonMark list, not a GFM table: the hosts' MDX pipelines run no remark-gfm, so a table
-        // would render as a paragraph of pipes.
-        $lines = [self::START, ''];
-
-        foreach ($rows as [$fact, $value]) {
-            $lines[] = "- **{$fact}:** {$value}";
-        }
-
-        $lines[] = '';
-        $lines[] = self::END;
-
-        return implode("\n", $lines);
+        return RegistryFacts::render($declaration, $declaringClass);
     }
 
     /** A fresh page: frontmatter, the facts block, and an empty authored section seeded by the description. */
@@ -102,35 +82,10 @@ final class RegistryFactsBlock
         return substr($contents, 0, $start).$block.substr($contents, $end + strlen(self::END));
     }
 
-    /** The block as it stands in `$contents`, markers included, or null — the drift check's reader. */
+    /** The block as it stands in `$contents`, markers included, or null — {@see RegistryFacts::extract()}. */
     public static function extract(string $contents): ?string
     {
-        $start = strpos($contents, self::START);
-        $end = $start === false ? false : strpos($contents, self::END, $start);
-
-        return $start === false || $end === false ? null : substr($contents, $start, $end + strlen(self::END) - $start);
-    }
-
-    private static function duplicates(OnKeyDuplicate $policy): string
-    {
-        return match ($policy) {
-            OnKeyDuplicate::Supersede => 'Supersede — a later registration under a taken key replaces the earlier entry, in its place',
-            OnKeyDuplicate::Reject => 'Reject — registering a taken key throws',
-            OnKeyDuplicate::Admit => 'Admit — every registration is kept; a single-entry read of a shared key refuses as ambiguous',
-        };
-    }
-
-    private static function population(PopulationRequirement $requirement): string
-    {
-        return match ($requirement) {
-            PopulationRequirement::Required => 'Required — an empty registry is reported as unpopulated',
-            PopulationRequirement::Optional => 'Optional — an empty registry is normal',
-        };
-    }
-
-    private static function code(string $text): string
-    {
-        return '`'.str_replace('`', "'", $text).'`';
+        return RegistryFacts::extract($contents);
     }
 
     /**

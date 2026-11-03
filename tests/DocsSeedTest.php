@@ -22,7 +22,10 @@ class DocsSeedTest extends TestCase
         $ux = dirname((new \ReflectionClass(BeamUxEntry::class))->getFileName(), 3);
         (require $ux.'/database/migrations/shared/create_beam_ux_entries_table.php.stub')->up();
         Storage::fake('docs-artifacts');
-        config(['beam.ux.compile.disk' => 'docs-artifacts', 'beam.docs.segment' => '/handbook']);
+        // No contributed sources: the provider's booted() pass mounted every installed family package's
+        // `docs/registries/` (splicewire/laravel-beam ships pages since registry-docs ticket 03) under the
+        // boot-time segment; this test seeds the root and its packaged pages alone.
+        config(['beam.ux.compile.disk' => 'docs-artifacts', 'beam.docs.segment' => '/handbook', 'beam.docs.sources' => []]);
         $sources = [];
         $driver = Mockery::mock(StorageDriver::class);
         $driver->shouldReceive('write')->times(3)->andReturnUsing(function ($key, $body, $namespace) use (&$sources) {
