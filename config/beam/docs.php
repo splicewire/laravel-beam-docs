@@ -20,6 +20,23 @@ return [
     // [['path' => 'resources/js/content', 'under' => null, 'type' => 'page', 'product' => 'splicewire', 'ignore' => []], ...]
     'sources' => [],
 
+    // registry-docs ticket 02 (ticket 01 rulings 2–4): the registry documentation spine.
+    'registries' => [
+        // The committed product-documentation catalog: every family registry root with its doc
+        // pointer, independent of this host's installed runtime roots. REGENERATION IS A COMMAND
+        // (`splicewire:beam:docs:registries:catalog` writes it; nothing else does); the resolver,
+        // the deep-link route and nav only read. Relative paths resolve against base_path().
+        'catalog' => 'docs/registries/catalog.json',
+        // The docs product the generic family `docs/registries/` source rows mount under (DOC-1).
+        'product' => 'splicewire',
+        // Extra `vendor/name => install path` packages for the CATALOG COMMAND only, merged over
+        // Composer's installed enumeration: the seam a spine host uses to regenerate over family
+        // packages it does not itself install (one host's bake is never the estate census). The
+        // generic source contributor never reads this — non-installed roots are covered by their
+        // catalog rows' pointers, not mounted.
+        'packages' => [],
+    ],
+
     // Literal authoring-tool tokens, checked in stored bodies and declared source files.
     'lint' => [
         'forbidden' => [

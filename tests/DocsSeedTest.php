@@ -25,7 +25,7 @@ class DocsSeedTest extends TestCase
         config(['beam.ux.compile.disk' => 'docs-artifacts', 'beam.docs.segment' => '/handbook']);
         $sources = [];
         $driver = Mockery::mock(StorageDriver::class);
-        $driver->shouldReceive('write')->twice()->andReturnUsing(function ($key, $body, $namespace) use (&$sources) {
+        $driver->shouldReceive('write')->times(3)->andReturnUsing(function ($key, $body, $namespace) use (&$sources) {
             $key = (string) Str::uuid();
             $sources[$key] = $body;
 
@@ -35,7 +35,7 @@ class DocsSeedTest extends TestCase
         $compiler = Mockery::mock(EntryBodyCompiler::class);
         $compiler->shouldReceive('handles')->andReturnTrue();
         $compiled = [];
-        $compiler->shouldReceive('compile')->twice()->andReturnUsing(function ($entry, $body) use (&$compiled) {
+        $compiler->shouldReceive('compile')->times(3)->andReturnUsing(function ($entry, $body) use (&$compiled) {
             $compiled[$entry->slug] = $body;
 
             return 'export default () => null;';
@@ -47,6 +47,10 @@ class DocsSeedTest extends TestCase
         $this->assertSame('/handbook', $root->segment);
         $this->assertSame(['beam-docs'], $root->requirements);
         $this->assertSame($root->id, $api->parent_id);
+        // registry-docs ticket 02: the registries spine anchor the generic family sources hang under.
+        $registries = BeamUxEntry::where('slug', 'docs-registries')->sole();
+        $this->assertSame($root->id, $registries->parent_id);
+        $this->assertSame('registries', $registries->segment);
         $this->assertStringContainsString('specUrl="/beam/openapi.yaml"', $compiled['docs-api']);
         $this->assertTrue(app(EntryArtifactStore::class)->has($root));
         $this->assertTrue(app(EntryArtifactStore::class)->has($api));
@@ -55,7 +59,7 @@ class DocsSeedTest extends TestCase
         $this->assertSame('Edited handbook', $root->fresh()->title);
         $this->assertSame('/edited', $root->fresh()->segment);
         $this->assertSame(['auth'], $root->fresh()->access);
-        $this->assertCount(2, $sources);
+        $this->assertCount(3, $sources);
     }
 
     /**

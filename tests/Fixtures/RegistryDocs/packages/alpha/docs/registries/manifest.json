@@ -1,0 +1,14 @@
+{
+    "overrides": {
+        "fixture.alpha.override": "docs/guides/override-page.mdx"
+    },
+    "external": {
+        "fixture.alpha.external": "https://example.com/docs/registries#fixture-alpha-external"
+    },
+    "exempt": {
+        "fixture.alpha.exempt": {
+            "reason": "rebind-only: hosts rebind this seam, nothing registers into it",
+            "pointer": "docs/guides/override-page.mdx"
+        }
+    }
+}

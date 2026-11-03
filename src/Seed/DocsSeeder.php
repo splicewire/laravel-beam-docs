@@ -61,6 +61,15 @@ class DocsSeeder extends Seeder
         $this->seedPage('docs-api', $api->body, array_merge($api->columns(), [
             'parent_id' => $root->getKey(),
         ], $subject->isProduct() && ! $subject->hasArtifact() ? ['access' => []] : []), origin: \Splicewire\Beam\Ux\Provenance\Provenance::package('splicewire/laravel-beam-docs'));
+
+        // registry-docs ticket 02: the registries spine anchor — the section every generic family
+        // `docs/registries/` source hangs under, so a registry page serves at
+        // `{segment}/registries/<root>` with the dotted root verbatim as its slug (rulings 2–3).
+        // Seeded before DocsSourcesSeeder runs (same chain, below), so contributed rows find it.
+        $registries = $this->stub('registries.mdx');
+        $this->seedPage('docs-registries', $registries->body, array_merge($registries->columns(), [
+            'parent_id' => $root->getKey(),
+        ]), origin: \Splicewire\Beam\Ux\Provenance\Provenance::package('splicewire/laravel-beam-docs'));
     }
 
     public function existingRoot(): ?BeamUxEntry

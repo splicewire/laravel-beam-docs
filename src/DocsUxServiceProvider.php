@@ -9,13 +9,17 @@ use Splicewire\Beam\Docs\Access\DocsEntryRequirement;
 use Splicewire\Beam\Docs\Chrome\DocsChrome;
 use Splicewire\Beam\Docs\Http\DocsPageController;
 use Splicewire\Beam\Docs\Http\DocsReadAccess;
+use Splicewire\Beam\Docs\Http\RegistryDocsController;
 use Splicewire\Beam\Docs\Publishing\Http\EnsurePublishingHost;
+use Splicewire\Beam\Docs\Registries\BeamDocsLinkResolver;
+use Splicewire\Beam\Docs\Registries\FamilyRegistryDocSources;
 use Splicewire\Beam\Docs\Search\DocsSearchOp;
 use Splicewire\Beam\Docs\Seed\DocsProvenanceTemplates;
 use Splicewire\Beam\Docs\Seed\DocsSeeder;
 use Splicewire\Beam\Docs\Theme\DocsThemeNamespaceSource;
 use Splicewire\Beam\Facades\Particle;
 use Splicewire\Beam\Seed\BeamSeedManifest;
+use Splicewire\Beam\Ux\Docs\DocsLinkResolver;
 use Splicewire\Beam\Ux\Http\EntryPageProps;
 use Splicewire\Beam\Ux\Manifest\ManifestProfileResolver;
 use Splicewire\Beam\Ux\Models\BeamUxEntry;
@@ -27,6 +31,12 @@ class DocsUxServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind('beam.ux.requirement.beam-docs', DocsEntryRequirement::class);
+        // registry-docs ticket 02: supersede beam-ux's null DocsLinkResolver default. A plain bind()
+        // behind the posture "beam-docs is installed" (host-bindings supersession lane, the
+        // beam-tenancy shape) — order-independent against beam-ux's bindIf by construction. The
+        // resolver reads the committed spine catalog and the entries table; there is no docs
+        // registry to read instead (beam-ux ADR-0210, amended ruling 1).
+        $this->app->bind(DocsLinkResolver::class, BeamDocsLinkResolver::class);
         if (defined(ThemeSchemas::class.'::SOURCES')) {
             $this->app->tag([DocsThemeNamespaceSource::class], ThemeSchemas::SOURCES);
         }
@@ -54,6 +64,11 @@ class DocsUxServiceProvider extends ServiceProvider
         });
         Route::middleware(['web', DocsReadAccess::class])->group(function (): void {
             Route::get('beam/docs/registry-link', [DocsPageController::class, 'registryLink'])->name('beam.docs.registry-link');
+            // registry-docs ticket 02: the registry deep link. `{root}` is the dotted root VERBATIM
+            // (the default pattern accepts dots; no slugifier, ruling 3 / R11). Mounted beside the
+            // package's other docs routes, never at the public page path — a package route there
+            // would shadow the host catch-all that serves the pages (ADR-0209 §2).
+            Route::get('beam/docs/registries/{root}', [RegistryDocsController::class, 'show'])->name('beam.docs.registries.show');
         });
         // docs.search (DOCS-14, DM6): a guest reads public docs as a guest, so it mounts beside the docs pages' own gate
         // (DocsReadAccess), never in a tenant API group; the throttle bounds a public endpoint. Every row is gated per
@@ -63,6 +78,10 @@ class DocsUxServiceProvider extends ServiceProvider
         });
         $this->publishes([__DIR__.'/../stubs/docs' => resource_path('beam-ux/docs')], 'beam-ux-docs');
         $this->app->make(BeamSeedManifest::class)->register('splicewire/laravel-beam-docs', DocsSeeder::class, order: 25);
+        // registry-docs ticket 02: the generic family `docs/registries/` source rows (ruling 2).
+        // On booted(), after every provider, so a package guarding its own docs-bundle row by
+        // `package:` stamp at its boot never meets a generic row first and skips its own.
+        $this->app->booted(fn () => $this->app->make(FamilyRegistryDocSources::class)->contribute());
         // DOCS-06b: the stubs this package seeds, current and the prior one found in the field, for the provenance backfill.
         $this->app->make(ProvenanceTemplates::class)->register(fn (): array => DocsProvenanceTemplates::all());
     }

@@ -8,6 +8,8 @@
         "illuminate/support": "^11.0|^12.0|^13.0",
         "illuminate/queue": "^11.0|^12.0|^13.0",
         "rushing/laravel-data-schemas-scribe": "dev-main",
+        "rushing/laravel-popcorn": "dev-main",
+        "rushing/php-popcorn": "dev-main",
         "schemastud/laravel-data-schemas": "dev-main",
         "splicewire/laravel-beam": "dev-main",
         "spatie/laravel-package-tools": "^1.16",
