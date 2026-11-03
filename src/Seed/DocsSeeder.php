@@ -102,6 +102,9 @@ class DocsSeeder extends Seeder
 
         return StubContent::parse(strtr((string) file_get_contents($path), [
             '{{ openapi_url }}' => route('beam.openapi.yaml', absolute: false),
+            // The registries anchor's sidebar names its own section, which sits under this host's
+            // docs segment (`/beam/docs` on www), never a hard-coded `/docs`.
+            '{{ docs_segment }}' => rtrim((string) config('beam.docs.segment', config('beam.ux.docs.segment', '/docs')), '/'),
             '{{ brand_title }}' => preg_replace('/\s+/', ' ', $brand).' documentation',
             '{{ brand }}' => strtr($brand, ['{' => '&#123;', '}' => '&#125;', '<' => '&lt;', '>' => '&gt;']),
         ]));

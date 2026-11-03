@@ -21,6 +21,9 @@ class RegistryDocsCatalog
     /** @var array<string, CatalogRow>|null */
     private ?array $rows = null;
 
+    /** @var array<string, array{owner: ?string, path: ?string, url: ?string, title: ?string}>|null */
+    private ?array $clusters = null;
+
     public function path(): string
     {
         $configured = config('beam.docs.registries.catalog');
@@ -40,10 +43,36 @@ class RegistryDocsCatalog
         return $this->rows ??= $this->load();
     }
 
+    /**
+     * The cluster pages the catalog records (ruling 7), `prefix => {owner, path, url, title}`, as
+     * committed. Empty for a catalog written before any cluster page existed.
+     *
+     * @return array<string, array{owner: ?string, path: ?string, url: ?string, title: ?string}>
+     */
+    public function clusters(): array
+    {
+        if ($this->clusters !== null) {
+            return $this->clusters;
+        }
+
+        $decoded = is_file($path = $this->path()) ? json_decode((string) file_get_contents($path), true) : null;
+        $clusters = [];
+
+        foreach (is_array($decoded['clusters'] ?? null) ? $decoded['clusters'] : [] as $prefix => $cluster) {
+            if (is_string($prefix) && $prefix !== '' && is_array($cluster)) {
+                $string = fn (string $key): ?string => is_string($cluster[$key] ?? null) && $cluster[$key] !== '' ? $cluster[$key] : null;
+                $clusters[$prefix] = ['owner' => $string('owner'), 'path' => $string('path'), 'url' => $string('url'), 'title' => $string('title')];
+            }
+        }
+
+        return $this->clusters = $clusters;
+    }
+
     /** Drop the memoized rows — the command calls this after writing, so one process sees its own write. */
     public function fresh(): static
     {
         $this->rows = null;
+        $this->clusters = null;
 
         return $this;
     }

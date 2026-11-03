@@ -55,14 +55,27 @@ class FamilyPackages
     /** @return array<string, string> installed packages plus the configured extras, extras winning on a name collision */
     public function forCatalog(): array
     {
-        $extra = [];
+        return [...$this->installed(), ...array_filter($this->configured(), 'is_string')];
+    }
+
+    /**
+     * The `beam.docs.registries.packages` rows as configured: `vendor/name => realpath`, or null
+     * where the configured path is not a directory on this machine. {@see forCatalog()} drops the
+     * nulls; the catalog command reports them, because a configured package that is silently
+     * missing would write a shorter catalog that reads like a complete one.
+     *
+     * @return array<string, ?string>
+     */
+    public function configured(): array
+    {
+        $configured = [];
 
         foreach ((array) config('beam.docs.registries.packages', []) as $name => $path) {
-            if (is_string($name) && $name !== '' && is_string($path) && is_dir($path) && ($real = realpath($path)) !== false) {
-                $extra[$name] = $real;
+            if (is_string($name) && $name !== '') {
+                $configured[$name] = is_string($path) && is_dir($path) && ($real = realpath($path)) !== false ? $real : null;
             }
         }
 
-        return [...$this->installed(), ...$extra];
+        return $configured;
     }
 }

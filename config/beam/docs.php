@@ -35,6 +35,21 @@ return [
         // generic source contributor never reads this — non-installed roots are covered by their
         // catalog rows' pointers, not mounted.
         'packages' => [],
+        // The registry section of the `site` nav (ruling 7): catalog clusters plus availability,
+        // composed into NavProjector's gated tree by Registries\RegistryDocsNav.
+        'nav' => [
+            // heading => root prefixes: groups gathered under one titled heading that is not a
+            // cluster (e.g. 'Tower operations' => ['conduit', 'determination', 'retrieval']).
+            'groupings' => [],
+            // root => group key, for a root that sits outside its natural prefix
+            // (e.g. 'workflow' => 'beam.workflows').
+            'place' => [],
+            // public paths of projected sections copied in as the registry section's first
+            // children (e.g. a host's '/beam/docs/foundations').
+            'lead' => [],
+            // group key => heading, for a group with no cluster page (e.g. 'beam' => 'Beam core').
+            'titles' => [],
+        ],
     ],
 
     // Literal authoring-tool tokens, checked in stored bodies and declared source files.

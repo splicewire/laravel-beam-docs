@@ -10,4 +10,7 @@ layout: DocsLayout
 Every integration seam in this product is a declared registry with a stable key. Each registry's
 reference page lives under this section, named by its key.
 
-<SiteNav rootPath="/docs/registries" maxDepth={2} />
+Registries are grouped by the cluster they belong to. A registry this site does not run is still
+listed, marked "not available on this host", so the reference is the same everywhere.
+
+<SiteNav rootPath="{{ docs_segment }}/registries" maxDepth={3} />

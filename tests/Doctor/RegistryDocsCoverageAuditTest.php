@@ -151,4 +151,23 @@ class RegistryDocsCoverageAuditTest extends TestCase
         $this->assertStringContainsString('fixture.beta', $finding->detail);
         $this->assertStringContainsString('is exempted as `infrastructure` and must carry a `pointer`', $finding->detail);
     }
+
+    public function test_a_page_named_for_a_root_in_a_package_that_does_not_declare_it_does_not_cover_it(): void
+    {
+        // The flagship's `music` collision, in miniature: beta declares `fixture.beta`, and another
+        // installed package ships a page file of that name (a cluster page there would be one). The
+        // declaring package documents nothing, so the root is uncovered, not covered by a page about
+        // something else.
+        $this->tmp = sys_get_temp_dir().'/coverage-declarer-'.bin2hex(random_bytes(4));
+        mkdir($this->tmp.'/docs/registries', 0700, true);
+        file_put_contents($this->tmp.'/docs/registries/fixture.beta.mdx', "# someone else's page\n");
+
+        $finding = $this->host([BetaRegistry::class], [
+            'splicewire/fixture-beta' => $this->fixtures.'/beta',
+            'splicewire/fixture-elsewhere' => $this->tmp,
+        ]);
+
+        $this->assertSame(DoctorStatus::Fail, $finding->status);
+        $this->assertStringContainsString('fixture.beta', $finding->detail);
+    }
 }

@@ -129,7 +129,8 @@ class RegistryCatalogCommandTest extends TestCase
             'owner' => 'splicewire/fixture-alpha',
             'path' => 'docs/registries/fixture.mdx',
             'url' => '/docs/registries/fixture',
-        ]], $catalog['clusters']);
+            'title' => 'The fixture cluster',
+        ]], $catalog['clusters'], 'the frontmatter title is carried so the nav can name a cluster a host does not serve');
     }
 
     public function test_a_cluster_page_outside_the_owning_package_fails_the_run(): void
@@ -197,6 +198,49 @@ class RegistryCatalogCommandTest extends TestCase
         $catalog = $this->regenerate('empty-key.json');
 
         $this->assertArrayNotHasKey('', $catalog['roots']);
+    }
+
+    public function test_a_configured_package_this_host_does_not_install_joins_the_census(): void
+    {
+        // gamma is NOT on popcorn.bake.paths and its classes are NOT loaded: only its composer.json
+        // psr-4 map and the scoped autoloader can bring its declaration into the census.
+        $packages = (array) config('beam.docs.registries.packages');
+        $packages['splicewire/fixture-gamma'] = dirname(__DIR__).'/Fixtures/RegistryDocs/uninstalled/gamma';
+        config(['beam.docs.registries.packages' => $packages]);
+
+        $catalog = $this->regenerate('estate.json');
+
+        $this->assertSame('splicewire/fixture-gamma', $catalog['roots']['fixture.gamma']['owner']);
+        $this->assertSame(['kind' => 'page', 'path' => 'docs/registries/fixture.gamma.mdx', 'url' => '/docs/registries/fixture.gamma'], $catalog['roots']['fixture.gamma']['doc']);
+        $this->assertCount(6, $catalog['roots']);
+    }
+
+    public function test_a_configured_package_whose_declaration_cannot_load_fails_the_run(): void
+    {
+        $packages = (array) config('beam.docs.registries.packages');
+        $packages['splicewire/fixture-broken'] = dirname(__DIR__).'/Fixtures/RegistryDocs/uninstalled/broken';
+        config(['beam.docs.registries.packages' => $packages]);
+
+        $path = $this->out.'/broken.json';
+        $this->artisan('splicewire:beam:docs:registries:catalog', ['--write-to' => $path])
+            ->expectsOutputToContain('fixture-broken')
+            ->assertFailed();
+
+        $this->assertFileDoesNotExist($path);
+    }
+
+    public function test_a_configured_package_path_that_is_missing_fails_the_run_rather_than_shrinking_it(): void
+    {
+        $packages = (array) config('beam.docs.registries.packages');
+        $packages['splicewire/fixture-gone'] = $this->out.'/no-such-package';
+        config(['beam.docs.registries.packages' => $packages]);
+
+        $path = $this->out.'/gone.json';
+        $this->artisan('splicewire:beam:docs:registries:catalog', ['--write-to' => $path])
+            ->expectsOutputToContain('splicewire/fixture-gone: beam.docs.registries.packages points at a path that is not a directory')
+            ->assertFailed();
+
+        $this->assertFileDoesNotExist($path);
     }
 
     public function test_reading_a_missing_catalog_never_writes_one(): void

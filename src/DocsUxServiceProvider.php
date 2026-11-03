@@ -13,12 +13,15 @@ use Splicewire\Beam\Docs\Http\RegistryDocsController;
 use Splicewire\Beam\Docs\Publishing\Http\EnsurePublishingHost;
 use Splicewire\Beam\Docs\Registries\BeamDocsLinkResolver;
 use Splicewire\Beam\Docs\Registries\FamilyRegistryDocSources;
+use Splicewire\Beam\Docs\Registries\RegistryDocsNav;
+use Splicewire\Beam\Docs\Registries\RegistryDocsNavProjector;
 use Splicewire\Beam\Docs\Search\DocsSearchOp;
 use Splicewire\Beam\Docs\Seed\DocsProvenanceTemplates;
 use Splicewire\Beam\Docs\Seed\DocsSeeder;
 use Splicewire\Beam\Docs\Theme\DocsThemeNamespaceSource;
 use Splicewire\Beam\Facades\Particle;
 use Splicewire\Beam\Seed\BeamSeedManifest;
+use Splicewire\Beam\Ux\Containment\NavProjector;
 use Splicewire\Beam\Ux\Docs\DocsLinkResolver;
 use Splicewire\Beam\Ux\Http\EntryPageProps;
 use Splicewire\Beam\Ux\Manifest\ManifestProfileResolver;
@@ -37,6 +40,12 @@ class DocsUxServiceProvider extends ServiceProvider
         // resolver reads the committed spine catalog and the entries table; there is no docs
         // registry to read instead (beam-ux ADR-0210, amended ruling 1).
         $this->app->bind(DocsLinkResolver::class, BeamDocsLinkResolver::class);
+        // registry-docs ticket 08 (ticket 01 ruling 7): the registry section of the `site` nav is the
+        // catalog grouped by cluster with availability annotations, composed into the projector's
+        // already-gated tree. Decorated rather than replaced, so beam-ux's publish/access passes run first.
+        $this->app->extend(NavProjector::class, fn (NavProjector $projector, $app) => $projector instanceof RegistryDocsNavProjector
+            ? $projector
+            : new RegistryDocsNavProjector($projector, $app->make(RegistryDocsNav::class)));
         if (defined(ThemeSchemas::class.'::SOURCES')) {
             $this->app->tag([DocsThemeNamespaceSource::class], ThemeSchemas::SOURCES);
         }
@@ -67,8 +76,11 @@ class DocsUxServiceProvider extends ServiceProvider
             // registry-docs ticket 02: the registry deep link. `{root}` is the dotted root VERBATIM
             // (the default pattern accepts dots; no slugifier, ruling 3 / R11). Mounted beside the
             // package's other docs routes, never at the public page path — a package route there
-            // would shadow the host catch-all that serves the pages (ADR-0209 §2).
-            Route::get('beam/docs/registries/{root}', [RegistryDocsController::class, 'show'])->name('beam.docs.registries.show');
+            // would shadow the host catch-all that serves the pages (ADR-0209 §2). Singular
+            // `registry/` (ticket 08): the plural form IS the public page path on a host whose docs
+            // segment is `/beam/docs` (the www spine), where it shadowed every served registry page
+            // and redirected each one to itself.
+            Route::get('beam/docs/registry/{root}', [RegistryDocsController::class, 'show'])->name('beam.docs.registries.show');
             // registry-docs ticket 03: the live registrant panel (host-variant, never committed).
             Route::get('beam/docs/registries/{root}/registrants', [RegistryDocsController::class, 'registrants'])->name('beam.docs.registries.registrants');
         });

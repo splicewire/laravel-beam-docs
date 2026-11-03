@@ -5,6 +5,7 @@ namespace Splicewire\Beam\Docs\Doctor;
 use Rushing\Doctor\DoctorAudit;
 use Rushing\Doctor\Finding;
 use Rushing\Popcorn\Registries\Docs\PackageRegistryDocs;
+use Rushing\Popcorn\Registries\IsRegistry;
 use Rushing\Popcorn\Registries\RegistryIndex;
 use Splicewire\Beam\Docs\Registries\FamilyPackages;
 use Splicewire\Beam\Docs\Registries\RegistryDocsCatalog;
@@ -35,9 +36,15 @@ use Throwable;
  * entry exists at a key, a different question, and the empty root is not even a legal key for it
  * (ruling 3).
  *
- * Coverage from (1) is accepted from any installed package, not only the declaring one. Pinning a
- * pointer to its declaring package is the catalog command's and the package tier's rule, and both
- * enforce it. This advisory audit asks only whether documentation exists for what this host runs.
+ * Coverage from (1) is read from the DECLARING package when this host can tell which installed
+ * package that is (the file of the class carrying `#[IsRegistry]`, found from the root's owner up its
+ * parents, matched by longest install-path prefix). Only a root whose
+ * declarer is not installed here falls back to any installed package. The reason is measured, not
+ * stylistic (registry-docs ticket 08): a cluster page is a file named for a prefix, so at the
+ * flagship `splicewire/laravel-composition-engine-music`'s `music.mdx` cluster page read as a page
+ * for the app's own `music` root, and the app-local root counted as covered by a page about other
+ * registries. Pinning a pointer to its declaring package is also the catalog command's and the
+ * package tier's rule.
  */
 class RegistryDocsCoverageAudit implements DoctorAudit
 {
@@ -81,8 +88,10 @@ class RegistryDocsCoverageAudit implements DoctorAudit
         $counts = [];
         $uncovered = [];
 
+        $installed = $this->packages->installed();
+
         foreach ($roots as $root) {
-            $kind = $this->coverage($root, $docs);
+            $kind = $this->coverage($root, $docs, $this->declarer($root, $installed));
             $kind === null ? $uncovered[] = $root : $counts[$kind] = ($counts[$kind] ?? 0) + 1;
         }
 
@@ -107,8 +116,18 @@ class RegistryDocsCoverageAudit implements DoctorAudit
      *
      * @param  array<string, PackageRegistryDocs>  $docs
      */
-    private function coverage(string $root, array $docs): ?string
+    private function coverage(string $root, array $docs, ?string $declarer): ?string
     {
+        if ($declarer !== null) {
+            $kind = isset($docs[$declarer]) ? $docs[$declarer]->satisfaction($root) : null;
+
+            if ($kind !== null) {
+                return $kind;
+            }
+
+            $docs = [];
+        }
+
         foreach ($docs as $package) {
             if (($kind = $package->satisfaction($root)) !== null) {
                 return $kind;
@@ -122,5 +141,45 @@ class RegistryDocsCoverageAudit implements DoctorAudit
         }
 
         return $row?->kind !== null ? 'catalog '.$row->kind : null;
+    }
+
+    /**
+     * The installed package (or the host app) whose source declares `$root`, by the owner class's
+     * file and the longest install-path prefix; null where this host cannot tell.
+     *
+     * @param  array<string, string>  $installed
+     */
+    private function declarer(string $root, array $installed): ?string
+    {
+        try {
+            $owner = $this->index->unfiltered()->owner($root);
+            $class = $owner === null ? false : new \ReflectionClass($owner);
+
+            // The DECLARING class carries the attribute. A host that rebinds a registry with its own
+            // subclass (the flagship's lazy workflow-bindings registry) owns the instance, not the
+            // declaration, so walk up to the class that declares the root.
+            while ($class !== false && $class->getAttributes(IsRegistry::class) === []) {
+                $class = $class->getParentClass();
+            }
+
+            $file = $class === false ? false : $class->getFileName();
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (! is_string($file)) {
+            return null;
+        }
+
+        $file = realpath($file) ?: $file;
+        uasort($installed, fn (string $a, string $b) => strlen($b) <=> strlen($a));
+
+        foreach ($installed as $name => $base) {
+            if (str_starts_with($file, rtrim($base, '/').'/')) {
+                return $name;
+            }
+        }
+
+        return null;
     }
 }

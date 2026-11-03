@@ -46,9 +46,39 @@ class RegistryCatalogCommand extends Command
             return self::FAILURE;
         }
 
+        $errors = [];
+        $installed = $packages->installed();
+
+        // The estate seam: configured packages this host does not install join the census here, so
+        // the catalog covers what the product documents rather than what this host runs (R4). A
+        // configured package whose path is missing fails the run rather than shrinking it.
+        $extras = [];
+
+        foreach ($packages->configured() as $name => $path) {
+            if ($path === null) {
+                $errors[] = "{$name}: beam.docs.registries.packages points at a path that is not a directory on this machine";
+            } elseif (! isset($installed[$name])) {
+                $extras[$name] = $path;
+            }
+        }
+
+        if ($extras !== []) {
+            ['entries' => $extraEntries, 'errors' => $extraErrors] = $census->ofPackages($extras);
+            array_push($errors, ...$extraErrors);
+
+            foreach ($extraEntries as $root => $declaration) {
+                if (isset($entries[$root]) && $entries[$root]['class'] !== $declaration['class']) {
+                    $errors[] = "`{$root}` is declared twice in the census: {$entries[$root]['class']} and {$declaration['class']}";
+                }
+
+                $entries[$root] ??= $declaration;
+            }
+
+            ksort($entries);
+        }
+
         $known = $packages->forCatalog();
         $owners = $census->owners($entries, $known);
-        $errors = [];
         $manifests = [];
         $pages = [];
         $clusters = [];
@@ -85,7 +115,7 @@ class RegistryCatalogCommand extends Command
                     // A cluster page (ruling 7): the filename is a prefix shared by declared roots,
                     // and it lives in the package that owns the cluster — never a dead root.
                     $clusterOwner === $name
-                        ? $clusters[$root] = ['owner' => $name, 'path' => 'docs/registries/'.basename($file)]
+                        ? $clusters[$root] = ['owner' => $name, 'path' => 'docs/registries/'.basename($file), ...(($title = self::title($file)) === null ? [] : ['title' => $title])]
                         : $errors[] = "{$name}: docs/registries/".basename($file)." is a cluster page, but the `{$root}` cluster is owned by {$clusterOwner} (most roots, then the root equal to the prefix, then the first vendor/name — ruling 7)";
                 } elseif (! isset($entries[$root])) {
                     $errors[] = "{$name}: docs/registries/".basename($file).' names no declared root or cluster prefix (dead root) — the filename is the dotted root, verbatim';
@@ -136,7 +166,8 @@ class RegistryCatalogCommand extends Command
         ksort($clusters);
 
         foreach ($clusters as $prefix => $cluster) {
-            $clusters[$prefix]['url'] = $publicBase.$prefix;
+            // url before title, so the committed key order is owner, path, url, title.
+            $clusters[$prefix] = ['owner' => $cluster['owner'], 'path' => $cluster['path'], 'url' => $publicBase.$prefix, ...(isset($cluster['title']) ? ['title' => $cluster['title']] : [])];
         }
 
         file_put_contents($path, json_encode([
@@ -155,5 +186,18 @@ class RegistryCatalogCommand extends Command
         ));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * A cluster page's frontmatter `title`, so the nav can name a cluster this host does not serve
+     * (ruling 7: the catalog, not the host bake, is the nav's input). Null where there is none.
+     */
+    private static function title(string $file): ?string
+    {
+        if (preg_match('/\A---\R(.*?)\R---/s', (string) file_get_contents($file), $front) !== 1) {
+            return null;
+        }
+
+        return preg_match('/^title:\s*(.+?)\s*$/m', $front[1], $title) === 1 ? trim($title[1], "\"'") : null;
     }
 }
