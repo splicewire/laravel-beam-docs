@@ -111,7 +111,7 @@ class RegistryCatalogCommand extends Command
                 $manifest !== null && isset($manifest->overrides[$root]) => new CatalogRow($root, $owner, CatalogRow::KIND_PAGE, path: $manifest->overrides[$root]),
                 isset($pages[$root]) => new CatalogRow($root, $owner, CatalogRow::KIND_PAGE, path: $pages[$root], url: $publicBase.$root),
                 $manifest !== null && isset($manifest->external[$root]) => new CatalogRow($root, $owner, CatalogRow::KIND_EXTERNAL, url: $manifest->external[$root]),
-                $manifest !== null && isset($manifest->exempt[$root]) => new CatalogRow($root, $owner, CatalogRow::KIND_EXEMPT, reason: $manifest->exempt[$root]['reason'], pointer: $manifest->exempt[$root]['pointer']),
+                $manifest !== null && isset($manifest->exempt[$root]) => new CatalogRow($root, $owner, CatalogRow::KIND_EXEMPT, reason: $manifest->exempt[$root]['reason'], pointer: $manifest->exempt[$root]['pointer'], exemptionClass: $manifest->exempt[$root]['class']),
                 default => new CatalogRow($root, $owner, null),
             };
 

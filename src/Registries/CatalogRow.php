@@ -31,6 +31,8 @@ class CatalogRow
         public readonly ?string $reason = null,
         /** exempt: the pointer to the doc explaining the mechanism (mandatory for infrastructure/rebind-only roots, ruling 4). */
         public readonly ?string $pointer = null,
+        /** exempt: the exemption class, infrastructure | rebind-only | app-local (`Rushing\Popcorn\Registries\Docs\ExemptionClass`, ticket 04). */
+        public readonly ?string $exemptionClass = null,
     ) {}
 
     /** @param  array<string, mixed>  $row  the decoded catalog JSON for one root */
@@ -47,6 +49,7 @@ class CatalogRow
             url: $doc === null ? null : $string('url'),
             reason: $doc === null ? null : $string('reason'),
             pointer: $doc === null ? null : $string('pointer'),
+            exemptionClass: $doc === null ? null : $string('class'),
         );
     }
 
@@ -56,7 +59,7 @@ class CatalogRow
         $doc = match ($this->kind) {
             self::KIND_PAGE => array_filter(['kind' => $this->kind, 'path' => $this->path, 'url' => $this->url], fn ($v) => $v !== null),
             self::KIND_EXTERNAL => ['kind' => $this->kind, 'url' => $this->url],
-            self::KIND_EXEMPT => array_filter(['kind' => $this->kind, 'reason' => $this->reason, 'pointer' => $this->pointer], fn ($v) => $v !== null),
+            self::KIND_EXEMPT => array_filter(['kind' => $this->kind, 'class' => $this->exemptionClass, 'reason' => $this->reason, 'pointer' => $this->pointer], fn ($v) => $v !== null),
             default => null,
         };
 

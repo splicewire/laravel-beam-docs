@@ -81,6 +81,7 @@ class RegistryCatalogCommandTest extends TestCase
 
         $exempt = $catalog['roots']['fixture.alpha.exempt']['doc'];
         $this->assertSame('exempt', $exempt['kind']);
+        $this->assertSame('rebind-only', $exempt['class'], 'the exemption class is carried into the catalog (ticket 04)');
         $this->assertSame('rebind-only: hosts rebind this seam, nothing registers into it', $exempt['reason']);
         $this->assertSame('docs/guides/override-page.mdx', $exempt['pointer']);
 
