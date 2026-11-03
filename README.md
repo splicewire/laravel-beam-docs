@@ -26,6 +26,17 @@ Attempts retain their artifact bytes, SHA-256, explicit release version, destina
 
 A successful current-destination publication can expose a Registry link beside the embedded API reference when `scalar.show_link` is enabled. Credentials and raw CLI output never reach page props or saved error messages.
 
+## Registries
+
+This package declares no registry of its own. It registers into four that `splicewire/laravel-beam` owns:
+
+- [`beam.install.steps`](https://github.com/splicewire/laravel-beam/blob/main/docs/registries/beam.install.steps.mdx): the install step that publishes the docs configuration, migrations and Scribe configuration, then runs `splicewire:beam:docs:generate`.
+- [`beam.doctor.audits`](https://github.com/splicewire/laravel-beam/blob/main/docs/registries/beam.doctor.audits.mdx): the docs audits, among them the Scribe output contract, unregistered and diverged docs, link targets, and registry page coverage.
+- [`beam.seed.steps`](https://github.com/splicewire/laravel-beam/blob/main/docs/registries/beam.seed.steps.mdx): the docs seeder.
+- [`beam.particle.operations`](https://github.com/splicewire/laravel-beam/blob/main/docs/registries/beam.particle.operations.mdx): the `search` operation on the `beam-docs` resource, mounted at `beam/docs`.
+
+It also renders every family package's `docs/registries/<root>.mdx` pages. `splicewire:beam:docs:registries:scaffold` creates or refreshes a package's pages, and `splicewire:beam:docs:registries:catalog` regenerates the catalog that lists them.
+
 ## Verification
 
 Run `composer test`. The package's tests exercise generation and artifact routes, privacy/adoption, and command/operator publication through a controlled Scalar executable. A real remote smoke test additionally requires a provisioned Scalar destination and token; unit tests do not claim to upload to Scalar.
