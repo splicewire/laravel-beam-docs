@@ -53,7 +53,8 @@ class DocsUxServiceProvider extends ServiceProvider
         // EP-42 S1: <ApiReference /> on this package's docs page is placeable where that page holds blocks. Offered only
         // to MDX pages (laravel-beam-ux's MDX_SOURCES); a laravel-beam-ux that predates the tag offers it to nothing.
         if (defined(ManifestProfileResolver::class.'::MDX_SOURCES')) {
-            $this->app->tag([Editor\ApiReferenceNodeSource::class], ManifestProfileResolver::MDX_SOURCES);
+            // registry-docs ticket 08: <RegistryRegistrants root="…" /> on the registry pages, offered the same way.
+            $this->app->tag([Editor\ApiReferenceNodeSource::class, Editor\RegistryRegistrantsNodeSource::class], ManifestProfileResolver::MDX_SOURCES);
         }
     }
 

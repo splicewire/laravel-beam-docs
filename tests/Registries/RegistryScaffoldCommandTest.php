@@ -72,6 +72,8 @@ class RegistryScaffoldCommandTest extends TestCase
         $this->assertStringContainsString('`Splicewire\Beam\Docs\Tests\Fixtures\RegistryDocs\Gamma\GammaRegistry`', $block);
 
         $this->assertStringContainsString('{/* registry-prose', $stub, 'the empty authored section follows the facts');
+        $this->assertStringContainsString("\n".RegistryFactsBlock::END."\n\n<RegistryRegistrants root=\"fixture.gamma\" />\n", $stub, 'the live registrant panel follows the facts, outside the markers');
+        $this->assertStringNotContainsString('RegistryRegistrants', (string) $block, 'a refresh never touches the panel tag');
         $this->assertFileExists($this->docs.'/fixture.gamma.second.mdx', 'one stub per undocumented declared root');
     }
 

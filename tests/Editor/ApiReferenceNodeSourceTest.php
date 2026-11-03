@@ -6,6 +6,7 @@ use Illuminate\Container\Container;
 use PHPUnit\Framework\TestCase;
 use Splicewire\Beam\Docs\DocsUxServiceProvider;
 use Splicewire\Beam\Docs\Editor\ApiReferenceNodeSource;
+use Splicewire\Beam\Docs\Editor\RegistryRegistrantsNodeSource;
 use Splicewire\Beam\Ux\Manifest\ManifestProfileResolver;
 
 /**
@@ -34,7 +35,17 @@ class ApiReferenceNodeSourceTest extends TestCase
 
         (new DocsUxServiceProvider($app))->register();
 
-        $this->assertSame([ApiReferenceNodeSource::class], array_map('get_class', iterator_to_array($app->tagged(ManifestProfileResolver::MDX_SOURCES), false)));
+        $this->assertSame([ApiReferenceNodeSource::class, RegistryRegistrantsNodeSource::class], array_map('get_class', iterator_to_array($app->tagged(ManifestProfileResolver::MDX_SOURCES), false)));
         $this->assertSame([], iterator_to_array($app->tagged(ManifestProfileResolver::PACKAGE_SOURCES), false));
+    }
+
+    public function test_it_declares_the_registrant_panel_with_its_root(): void
+    {
+        $nodes = (new RegistryRegistrantsNodeSource)->manifest('content')['nodes'];
+
+        $this->assertSame(['RegistryRegistrants'], array_column($nodes, 'name'));
+        $this->assertSame('string', $nodes[0]['attrsSchema']['properties']['root']['type']);
+        $this->assertSame(['root'], $nodes[0]['attrsSchema']['required']);
+        $this->assertSame([], (new RegistryRegistrantsNodeSource)->nodeClassesFor('chrome'));
     }
 }

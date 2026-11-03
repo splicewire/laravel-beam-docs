@@ -35,7 +35,7 @@ final class RegistryFactsBlock
         return RegistryFacts::render($declaration, $declaringClass);
     }
 
-    /** A fresh page: frontmatter, the facts block, and an empty authored section seeded by the description. */
+    /** A fresh page: frontmatter, the facts block, the registrant panel, and an empty authored section seeded by the description. */
     public static function stub(IsRegistry $declaration, string $declaringClass): string
     {
         $root = $declaration->root;
@@ -51,6 +51,8 @@ final class RegistryFactsBlock
             "# `{$root}`",
             '',
             self::render($declaration, $declaringClass),
+            '',
+            self::panel($root),
             '',
             '{/* registry-prose — authored. Everything outside the facts markers is yours; the scaffold command never writes it.',
             '   Write for a developer meeting this registry cold: what it is for, who registers into it, how to register,',
@@ -80,6 +82,17 @@ final class RegistryFactsBlock
         }
 
         return substr($contents, 0, $start).$block.substr($contents, $end + strlen(self::END));
+    }
+
+    /**
+     * The registrant panel tag (ticket 01, ruling 6): `@splicewire/beam-docs` renders it from the serving host's live
+     * answer, so the page carries only the root. It sits outside the facts markers, in the authored part of the page:
+     * a refresh never adds, moves or removes it, and an author may delete it. Roots are dotted identifiers, so the
+     * attribute needs no escaping.
+     */
+    public static function panel(string $root): string
+    {
+        return '<RegistryRegistrants root="'.$root.'" />';
     }
 
     /** The block as it stands in `$contents`, markers included, or null — {@see RegistryFacts::extract()}. */

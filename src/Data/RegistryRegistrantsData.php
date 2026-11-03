@@ -3,6 +3,7 @@
 namespace Splicewire\Beam\Docs\Data;
 
 use Spatie\LaravelData\Attributes\DataCollectionOf;
+use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
 
 /**
@@ -23,6 +24,7 @@ use Splicewire\Beam\Data\BeamData;
  * absent one here, exactly as `has()` answers it (RecordsRegistrants.php — an unfiltered registrant
  * read is an existence oracle).
  */
+#[TypeScript]
 class RegistryRegistrantsData extends BeamData
 {
     /** @param  list<RegistryRegistrantData>|null  $entries */
