@@ -2,12 +2,15 @@
 
 namespace Splicewire\Beam\Docs\Tests\Doctor;
 
+use Illuminate\Validation\ValidationException;
 use Rushing\Doctor\DoctorStatus;
 use Rushing\Doctor\Finding;
 use Splicewire\Beam\Docs\Doctor\DocsDivergedAudit;
 use Splicewire\Beam\Docs\Tests\TestCase;
+use Splicewire\Beam\Mdx\Lens\MdxLens;
 use Splicewire\Beam\Storage\StorageDriver;
 use Splicewire\Beam\Storage\StorageItem;
+use Splicewire\Beam\Ux\Codec\CodecRegistry;
 use Splicewire\Beam\Ux\Models\BeamUxEntry;
 use Splicewire\Beam\Ux\Provenance\Provenance;
 use Splicewire\Beam\Ux\Storage\StorageDriverResolver;
@@ -70,7 +73,84 @@ class DocsDivergedAuditTest extends TestCase
         $this->assertFalse($finding->conclusive, $finding->detail);
     }
 
-    private function entry(string $slug, string $namespace, string $title, string $storedBody, string $origin, ?string $assertedOver = null): void
+    // ── Unreadable and missing-origin rows are neither pristine nor diverged (registry-docs ticket 16) ────────────────
+
+    public function test_a_row_this_host_cannot_print_is_counted_apart_and_never_passes(): void
+    {
+        // The flagship's shape (registry-docs ticket 14): MDX held as blocks, and a lens that does not resolve.
+        config(['beam.ux.mdx.holds_blocks' => true]);
+        $this->app->forgetInstance(CodecRegistry::class);
+        $this->app->instance(MdxLens::class, new ThrowingDivergedLens);
+        $this->entry('index', 'docs', 'Docs', "# Docs\nWelcome.", Provenance::package('splicewire/laravel-beam-docs'));
+        $this->blocksEntry('build', 'docs', Provenance::disk('build.mdx'));
+        $this->blocksEntry('using', 'docs', Provenance::disk('using.mdx'));
+
+        $finding = $this->finding();
+
+        $this->assertNotSame(DoctorStatus::Pass, $finding->status, $finding->detail);
+        $this->assertFalse($finding->conclusive, 'two of three rows were never judged');
+        $this->assertStringContainsString('1 checked · 0 diverged', $finding->detail);
+        $this->assertStringContainsString('2 stored body unreadable on this host', $finding->detail);
+        $this->assertStringContainsString('docs.build (disk:build.mdx)', $finding->detail);
+        $this->assertStringContainsString('docs.using (disk:using.mdx)', $finding->detail);
+        $this->assertStringContainsString(ThrowingDivergedLens::DIAGNOSTIC, $finding->detail, 'the first diagnostic is named');
+    }
+
+    public function test_a_disk_row_whose_origin_file_is_gone_is_named_on_its_own_line_not_as_diverged(): void
+    {
+        $root = $this->sources(['guide.mdx']);
+        $this->entry('guide', null, 'Guide', "# Guide\nSteps.", Provenance::disk('guide.mdx'));
+        // www's `engines`: its file was deleted, and its stamp does not match (it was never re-stamped against a file).
+        $this->entry('engines', null, 'Engines', "# Engines\nOld words.", Provenance::disk('engines.mdx'), assertedOver: "# Engines\nOlder.");
+
+        $finding = $this->finding();
+
+        $this->assertSame(DoctorStatus::Warn, $finding->status, 'a published page whose origin went away warns');
+        $this->assertStringContainsString('1 checked · 0 diverged', $finding->detail);
+        $this->assertMatchesRegularExpression('/\n1 origin missing \(no file under the declared docs sources\): engines \(disk:engines\.mdx, published\)/', $finding->detail);
+        @unlink($root.'/guide.mdx');
+        @rmdir($root);
+    }
+
+    public function test_an_unpublished_row_whose_origin_file_is_gone_is_informational(): void
+    {
+        $root = $this->sources(['guide.mdx']);
+        $this->entry('guide', null, 'Guide', "# Guide\nSteps.", Provenance::disk('guide.mdx'));
+        $this->entry('engines', null, 'Engines', "# Engines\nOld words.", Provenance::disk('engines.mdx'), assertedOver: "# Engines\nOlder.");
+        BeamUxEntry::query()->where('slug', 'engines')->update(['workflow_marking' => 'draft']);
+
+        $finding = $this->finding();
+
+        $this->assertSame(DoctorStatus::Pass, $finding->status, $finding->detail);
+        $this->assertTrue($finding->conclusive);
+        $this->assertStringContainsString('1 checked · 0 diverged', $finding->detail);
+        $this->assertStringContainsString("\n1 origin missing (no file under the declared docs sources): engines (disk:engines.mdx, unpublished: draft)", $finding->detail);
+        @unlink($root.'/guide.mdx');
+        @rmdir($root);
+    }
+
+    /** Declare one docs source holding `$files`; returns its root. */
+    private function sources(array $files): string
+    {
+        $root = sys_get_temp_dir().'/docs-diverged-'.uniqid();
+        mkdir($root);
+        foreach ($files as $file) {
+            file_put_contents($root.'/'.$file, "# {$file}\n");
+        }
+        config(['beam.docs.sources' => [['path' => $root]]]);
+
+        return $root;
+    }
+
+    /** A row whose stored body is blocks, so reading it needs the MDX lens's printer. */
+    private function blocksEntry(string $slug, string $namespace, string $origin): void
+    {
+        $entry = BeamUxEntry::create(['slug' => $slug, 'namespace' => $namespace, 'type' => 'page', 'format' => 'mdx', 'title' => ucfirst($slug), 'origin' => $origin, 'asserted_hash' => str_repeat('a', 64)]);
+        $item = $this->driver->write('', [['kind' => 'block', 'name' => 'p', 'isComponent' => false, 'props' => [], 'children' => [['kind' => 'text', 'value' => 'Words.']], 'dynamic' => false]], $namespace);
+        $entry->forceFill(['particle_id' => $item->key])->save();
+    }
+
+    private function entry(string $slug, ?string $namespace, string $title, string $storedBody, string $origin, ?string $assertedOver = null): void
     {
         $entry = BeamUxEntry::create([
             'slug' => $slug,
@@ -125,5 +205,21 @@ class DivergedMemoryDriver implements StorageDriver
     public function staleness(string $key, int $candidateModifiedAt): int
     {
         return 0;
+    }
+}
+
+/** A host whose `@splicewire/beam-mdx` has no `./lens` export: the printer throws its own diagnostic. */
+class ThrowingDivergedLens implements MdxLens
+{
+    public const DIAGNOSTIC = 'beam-mdx lens: cannot resolve [@splicewire/beam-mdx/lens] from the host at /srv/host ([@splicewire/beam-mdx] does not export [./lens])';
+
+    public function read(string $body, array $context = []): array
+    {
+        throw ValidationException::withMessages(['source' => self::DIAGNOSTIC]);
+    }
+
+    public function print(array $doc): string
+    {
+        throw ValidationException::withMessages(['source' => self::DIAGNOSTIC]);
     }
 }

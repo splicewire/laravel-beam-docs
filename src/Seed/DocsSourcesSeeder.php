@@ -4,9 +4,9 @@ namespace Splicewire\Beam\Docs\Seed;
 
 use Illuminate\Database\Seeder;
 use RuntimeException;
+use Splicewire\Beam\Ux\Containment\EntryPathResolver;
 use Splicewire\Beam\Ux\Disk\RegisterEntriesFromDisk;
 use Splicewire\Beam\Ux\Models\BeamUxEntry;
-use Splicewire\Beam\Ux\Containment\EntryPathResolver;
 use Splicewire\Beam\Ux\Type\UxType;
 use Splicewire\Beam\Write\AsSystemWriter;
 
@@ -67,6 +67,12 @@ class DocsSourcesSeeder extends Seeder
         }
         if (($result['failed'] ?? []) !== []) {
             throw new RuntimeException("Docs source [{$declared}]: bodies that registered but would not compile: ".implode(', ', array_keys($result['failed'])).'.');
+        }
+        // Kept, not edited (registry-docs ticket 16): this host could not print these rows' stored bodies, so it cannot
+        // tell whether they are pristine and re-asserted none of them. Said, not thrown: the rows are intact.
+        if (($unreadable = (array) ($result['unreadable'] ?? [])) !== []) {
+            $this->command?->warn(sprintf('Docs source [%s]: %d row(s) not re-asserted, stored body unreadable on this host (first: %s): %s.',
+                $declared, count($unreadable), reset($unreadable), implode(', ', array_keys($unreadable))));
         }
     }
 
