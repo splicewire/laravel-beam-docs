@@ -3,6 +3,8 @@
 namespace Splicewire\Beam\Docs\Tests\Registries;
 
 use Illuminate\Filesystem\Filesystem;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Rushing\Popcorn\Registries\Docs\RegistryDocsCheck;
 use Splicewire\Beam\Docs\Registries\RegistryFactsBlock;
 use Splicewire\Beam\Docs\Tests\TestCase;
 
@@ -152,6 +154,118 @@ class RegistryScaffoldCommandTest extends TestCase
         $this->artisan('splicewire:beam:docs:registries:scaffold', ['package' => 'splicewire/fixture-gamma', '--root' => ['fixture.gamma.*']])
             ->expectsOutputToContain('1 created, 0 refreshed, 1 unchanged')
             ->assertSuccessful();
+    }
+
+    /** A page as written before the stub carried the panel: the stub with its panel line taken out. */
+    private function prePanelPage(string $root): string
+    {
+        $this->scaffold();
+        $file = $this->docs.'/'.$root.'.mdx';
+        $old = str_replace("\n\n".RegistryFactsBlock::panel($root), '', (string) file_get_contents($file))
+            ."\n## Registering\n\nAuthored body.\n";
+        file_put_contents($file, $old);
+        $this->assertStringNotContainsString('RegistryRegistrants', $old);
+
+        return $old;
+    }
+
+    public function test_panel_places_the_tag_on_the_line_after_the_facts_block(): void
+    {
+        $old = $this->prePanelPage('fixture.gamma');
+        $file = $this->docs.'/fixture.gamma.mdx';
+
+        $this->artisan('splicewire:beam:docs:registries:scaffold', ['package' => 'splicewire/fixture-gamma', '--panel' => true])
+            ->expectsOutputToContain('Panel: 1 placed, 1 already present; 0 skipped (no facts block).')
+            ->assertSuccessful();
+
+        $placed = (string) file_get_contents($file);
+        $this->assertSame(
+            str_replace(RegistryFactsBlock::END."\n", RegistryFactsBlock::END."\n\n<RegistryRegistrants root=\"fixture.gamma\" />\n", $old),
+            $placed,
+            'the tag is the only new line, right after the end marker, a blank line on each side',
+        );
+        $this->assertSame(1, substr_count($placed, '<RegistryRegistrants'));
+        $this->assertSame(RegistryFactsBlock::extract($old), RegistryFactsBlock::extract($placed), 'the facts block is untouched');
+        $this->assertStringNotContainsString('RegistryRegistrants', (string) RegistryFactsBlock::extract($placed), 'never inside the markers');
+    }
+
+    public function test_panel_is_idempotent(): void
+    {
+        $this->prePanelPage('fixture.gamma');
+        $args = ['package' => 'splicewire/fixture-gamma', '--panel' => true];
+
+        $this->artisan('splicewire:beam:docs:registries:scaffold', $args)->assertSuccessful();
+        $once = array_map('file_get_contents', glob($this->docs.'/*.mdx'));
+
+        $this->artisan('splicewire:beam:docs:registries:scaffold', $args)
+            ->expectsOutputToContain('Panel: 0 placed, 2 already present; 0 skipped (no facts block).')
+            ->assertSuccessful();
+
+        $this->assertSame($once, array_map('file_get_contents', glob($this->docs.'/*.mdx')), 'a second run writes nothing');
+
+        // An author who moved the tag keeps their placement.
+        $file = $this->docs.'/fixture.gamma.mdx';
+        $moved = str_replace("\n\n<RegistryRegistrants root=\"fixture.gamma\" />", '', (string) file_get_contents($file))."\n<RegistryRegistrants root=\"fixture.gamma\" />\n";
+        file_put_contents($file, $moved);
+        $this->artisan('splicewire:beam:docs:registries:scaffold', $args)->assertSuccessful();
+        $this->assertSame($moved, file_get_contents($file));
+    }
+
+    public function test_panel_leaves_the_facts_block_passing_the_adoption_check(): void
+    {
+        $this->prePanelPage('fixture.gamma');
+        $base = dirname($this->docs, 2);
+
+        $before = RegistryDocsCheck::forPackage($base)->run();
+        $this->assertSame([], $before->failures(), $before->summary());
+
+        $this->artisan('splicewire:beam:docs:registries:scaffold', ['package' => 'splicewire/fixture-gamma', '--panel' => true])->assertSuccessful();
+
+        $after = RegistryDocsCheck::forPackage($base)->run();
+        $this->assertSame([], $after->failures(), $after->summary());
+        $this->assertCount(2, $after->coverage, 'the check is active and covers both fixture roots');
+    }
+
+    public function test_panel_skips_and_lists_a_page_with_no_facts_block(): void
+    {
+        $authored = "---\ntitle: Gamma\n---\n\n# Gamma\n\nA wholly hand-written page, no markers.\n";
+        file_put_contents($this->docs.'/fixture.gamma.mdx', $authored);
+
+        $this->artisan('splicewire:beam:docs:registries:scaffold', ['package' => 'splicewire/fixture-gamma', '--panel' => true])
+            ->expectsOutputToContain('Panel: 0 placed, 1 already present; 1 skipped (no facts block).')
+            ->expectsOutputToContain('no facts block, panel not placed: splicewire/fixture-gamma  docs/registries/fixture.gamma.mdx')
+            ->assertSuccessful();
+
+        $this->assertSame($authored, file_get_contents($this->docs.'/fixture.gamma.mdx'), 'a page without markers is never written');
+    }
+
+    public function test_without_panel_an_existing_page_gains_no_tag(): void
+    {
+        $old = $this->prePanelPage('fixture.gamma');
+
+        $this->scaffold();
+
+        $this->assertSame($old, file_get_contents($this->docs.'/fixture.gamma.mdx'), 'a refresh never adds the panel');
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function panelShapes(): iterable
+    {
+        $end = RegistryFactsBlock::END;
+        $tag = '<RegistryRegistrants root="r" />';
+
+        yield 'blank line follows' => ["{$end}\n\n## Next\n", "{$end}\n\n{$tag}\n\n## Next\n"];
+        yield 'text directly below' => ["{$end}\n## Next\n", "{$end}\n\n{$tag}\n\n## Next\n"];
+        yield 'end of file, newline' => ["{$end}\n", "{$end}\n\n{$tag}\n"];
+        yield 'end of file, none' => [$end, "{$end}\n\n{$tag}\n"];
+    }
+
+    #[DataProvider('panelShapes')]
+    public function test_with_panel_keeps_one_blank_line_on_each_side(string $after, string $expected): void
+    {
+        $head = RegistryFactsBlock::START."\nfacts\n";
+
+        $this->assertSame($head.$expected, RegistryFactsBlock::withPanel($head.$after, 'r'));
     }
 
     public function test_an_unknown_package_fails_without_writing(): void

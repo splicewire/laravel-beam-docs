@@ -95,6 +95,44 @@ final class RegistryFactsBlock
         return '<RegistryRegistrants root="'.$root.'" />';
     }
 
+    /**
+     * `$contents` with the registrant panel for `$root` placed after its facts block, for an existing page
+     * that predates the stub's panel (the scaffold command's `--panel`). Idempotent: a page that already
+     * carries a `<RegistryRegistrants` tag anywhere (an author may have moved it) is returned unchanged.
+     * Null when the page carries no well-formed facts block: a wholly hand-authored page, or a cluster
+     * page, which spans several roots and so has no one root to show.
+     *
+     * The tag goes on its own line after `{/* registry-facts:end *\/}`, separated by one blank line on each
+     * side, exactly where {@see stub()} puts it. Nothing between the markers changes, so the drift check
+     * reads the same block; outside them, only the inserted line and its separating newlines are new.
+     */
+    public static function withPanel(string $contents, string $root): ?string
+    {
+        $start = strpos($contents, self::START);
+        $end = $start === false ? false : strpos($contents, self::END, $start);
+
+        if ($end === false) {
+            return null;
+        }
+
+        if (preg_match('/<RegistryRegistrants\b/', $contents) === 1) {
+            return $contents;
+        }
+
+        $at = $end + strlen(self::END);
+        $rest = substr($contents, $at);
+        $panel = "\n\n".self::panel($root);
+
+        $tail = match (true) {
+            $rest === '', $rest === "\n" => "\n",
+            str_starts_with($rest, "\n\n") => $rest,
+            str_starts_with($rest, "\n") => "\n".$rest,
+            default => "\n\n".$rest,
+        };
+
+        return substr($contents, 0, $at).$panel.$tail;
+    }
+
     /** The block as it stands in `$contents`, markers included, or null — {@see RegistryFacts::extract()}. */
     public static function extract(string $contents): ?string
     {
