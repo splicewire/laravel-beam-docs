@@ -28,14 +28,17 @@ A successful current-destination publication can expose a Registry link beside t
 
 ## Registries
 
-This package declares no registry of its own. It registers into four that `splicewire/laravel-beam` owns:
+This package declares no registry of its own. It registers into four that `splicewire/laravel-beam` owns, and one that `rushing/laravel-data-nav` owns:
 
 - [`beam.install.steps`](https://github.com/splicewire/laravel-beam/blob/main/docs/registries/beam.install.steps.mdx): the install step that publishes the docs configuration, migrations and Scribe configuration, then runs `splicewire:beam:docs:generate`.
 - [`beam.doctor.audits`](https://github.com/splicewire/laravel-beam/blob/main/docs/registries/beam.doctor.audits.mdx): the docs audits, among them the Scribe output contract, unregistered and diverged docs, link targets, and registry page coverage.
 - [`beam.seed.steps`](https://github.com/splicewire/laravel-beam/blob/main/docs/registries/beam.seed.steps.mdx): the docs seeder.
 - [`beam.particle.operations`](https://github.com/splicewire/laravel-beam/blob/main/docs/registries/beam.particle.operations.mdx): the `search` operation on the `beam-docs` resource, mounted at `beam/docs`.
+- [`data-nav.kinds`](https://github.com/stephenr85/laravel-data-nav/blob/main/docs/registries/data-nav.kinds.mdx): the `beam-docs/registry-index` node kind, so the registry index keeps its data through a nav round trip.
 
 It also renders every family package's `docs/registries/<root>.mdx` pages. `splicewire:beam:docs:registries:scaffold` creates or refreshes a package's pages, and `splicewire:beam:docs:registries:catalog` regenerates the catalog that lists them.
+
+In the docs nav, the registry section is one link per root, grouped by cluster. Set `beam.docs.registries.nav.widget` to `index` and it becomes one `beam-docs/registry-index` node instead, which `@splicewire/beam-docs` draws as a search box over a collapsible cluster tree, with every root this host does not serve still listed and marked. Switch it on once the host's built client includes the renderer: an older bundle draws the node as a heading over the cluster pages only.
 
 ## Verification
 

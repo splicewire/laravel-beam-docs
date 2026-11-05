@@ -5,6 +5,10 @@ namespace Splicewire\Beam\Docs\Registries;
 use Rushing\DataNav\NavLink;
 use Rushing\DataNav\NavNode;
 use Rushing\DataNav\NavTree;
+use Splicewire\Beam\Docs\Data\RegistryIndexAvailability;
+use Splicewire\Beam\Docs\Data\RegistryIndexData;
+use Splicewire\Beam\Docs\Data\RegistryIndexGroupData;
+use Splicewire\Beam\Docs\Data\RegistryIndexRootData;
 use Throwable;
 
 /**
@@ -37,11 +41,25 @@ use Throwable;
  *  - a served page under the section that the catalog does not list (an app-local root's page on
  *    a host) is kept, after the catalog's groups.
  *
+ * `beam.docs.registries.nav.widget` picks how the section is drawn (docs-feedback ticket 07). `links`,
+ * the default, is the list above. `index` puts the lead pages first and then one
+ * {@see RegistryIndexNavNode}: the same groups as data ({@see RegistryIndexData}, availability as a
+ * value), for a client that maps the node's kind to a widget, with the `links` list as its children
+ * so a client that does not know the kind still draws a list. The default stays `links` because a
+ * host's built client can lag its server (a stale bundle draws an unknown kind as a heading over
+ * cluster links, losing the roots), so a host opts in once its bundle carries the renderer.
+ *
  * Without a catalog, or without a projected registries node, the tree is returned unchanged: the
  * nav degrades to the entries-table answer, never to an error.
  */
 class RegistryDocsNav
 {
+    /** One link per root under its group's heading: the nav as it has always been drawn. */
+    public const WIDGET_LINKS = 'links';
+
+    /** One {@see RegistryIndexNavNode} whose kind a client maps to a search-and-tree widget. */
+    public const WIDGET_INDEX = 'index';
+
     public function __construct(
         private RegistryDocsCatalog $catalog,
         private RegistryDocsAvailability $availability,
@@ -111,11 +129,62 @@ class RegistryDocsNav
     }
 
     /**
+     * The section's children in the configured widget mode: `links` (the default) is one link per
+     * root under its group's heading; `index` is the lead pages followed by one
+     * {@see RegistryIndexNavNode} carrying the same groups as data, with those links as its children.
+     *
      * @param  array<int, NavNode>  $served  the projected (already gated) children of the section
      * @param  array<string, CatalogRow>  $rows
      * @return array<int, NavNode>
      */
     private function section(array $served, string $anchor, array $rows): array
+    {
+        [$groups, $unlisted] = $this->groups($served, $anchor, $rows);
+        $links = [...array_map($this->groupLink(...), $groups), ...$unlisted];
+
+        if ($this->widget() !== self::WIDGET_INDEX) {
+            return $links;
+        }
+
+        $index = [...$groups];
+
+        if ($unlisted !== []) {
+            $index[] = new RegistryIndexGroupData(
+                key: '',
+                title: (string) config('beam.docs.registries.nav.unlisted_title', 'On this host'),
+                href: null,
+                roots: array_values(array_map(fn (NavNode $node): RegistryIndexRootData => new RegistryIndexRootData(
+                    root: $node->title,
+                    href: $node->href,
+                    availability: RegistryIndexAvailability::Served,
+                    note: null,
+                ), $unlisted)),
+            );
+        }
+
+        return [new RegistryIndexNavNode(
+            title: (string) config('beam.docs.registries.nav.index_title', 'Registry index'),
+            index: new RegistryIndexData(groups: $index, total: count($rows)),
+            children: $links,
+        )];
+    }
+
+    /** `links` or `index`, from `beam.docs.registries.nav.widget`; anything else reads as `links`. */
+    public function widget(): string
+    {
+        return config('beam.docs.registries.nav.widget') === self::WIDGET_INDEX ? self::WIDGET_INDEX : self::WIDGET_LINKS;
+    }
+
+    /**
+     * The catalog grouped for this host, the one structure both widget modes are drawn from: the
+     * top-level groups (configured headings first, then the remaining groups by key) and the served
+     * pages the catalog does not list.
+     *
+     * @param  array<int, NavNode>  $served
+     * @param  array<string, CatalogRow>  $rows
+     * @return array{0: list<RegistryIndexGroupData>, 1: list<NavNode>}
+     */
+    private function groups(array $served, string $anchor, array $rows): array
     {
         $byPath = [];
 
@@ -128,36 +197,37 @@ class RegistryDocsNav
         $clusters = $this->catalog->clusters();
         $place = array_filter((array) config('beam.docs.registries.nav.place', []), 'is_string');
         $titles = array_filter((array) config('beam.docs.registries.nav.titles', []), 'is_string');
-        $groups = [];
+        $members = [];
         $claimed = [];
 
         foreach ($rows as $root => $row) {
             $key = $place[$root] ?? $this->groupOf($root, array_keys($clusters));
             $path = $this->trim($anchor.'/'.$root);
-            $groups[$key][] = $this->rootLink($root, $row, $byPath[$path] ?? null);
+            $members[$key][] = $this->rootEntry($root, $row, $byPath[$path] ?? null);
             $claimed[$path] = true;
         }
 
+        /** @var array<string, RegistryIndexGroupData> $nodes */
         $nodes = [];
 
-        foreach ($groups as $key => $links) {
-            usort($links, fn (NavNode $a, NavNode $b): int => strcmp($a->title, $b->title));
+        foreach ($members as $key => $roots) {
+            usort($roots, fn (RegistryIndexRootData $a, RegistryIndexRootData $b): int => strcmp($a->root, $b->root));
             $path = $this->trim($anchor.'/'.$key);
             $page = $byPath[$path] ?? null;
             $claimed[$path] = true;
             $title = $page?->title ?? ($clusters[$key]['title'] ?? $titles[$key] ?? $key);
-            $nodes[$key] = NavLink::make(title: $title, href: $page?->href, children: $links);
+            $nodes[$key] = new RegistryIndexGroupData(key: (string) $key, title: $title, href: $page?->href, roots: $roots);
         }
 
         // A cluster inside another cluster (`music.transcribe.stage` in `music`) nests under it,
         // deepest first, after the parent's own roots.
-        $keys = array_keys($nodes);
+        $keys = array_map('strval', array_keys($nodes));
         usort($keys, fn (string $a, string $b): int => substr_count($b, '.') <=> substr_count($a, '.'));
 
         foreach ($keys as $key) {
             foreach ($keys as $parent) {
                 if ($parent !== $key && isset($nodes[$parent], $clusters[$key], $clusters[$parent]) && str_starts_with($key, $parent.'.')) {
-                    $nodes[$parent]->children[] = $nodes[$key];
+                    $nodes[$parent]->groups[] = $nodes[$key];
                     unset($nodes[$key]);
 
                     break;
@@ -169,12 +239,12 @@ class RegistryDocsNav
         $sections = [];
 
         foreach ((array) config('beam.docs.registries.nav.groupings', []) as $heading => $prefixes) {
-            $members = [];
+            $gathered = [];
 
             foreach ($nodes as $key => $node) {
                 foreach ((array) $prefixes as $prefix) {
-                    if (is_string($prefix) && ($key === $prefix || str_starts_with($key, $prefix.'.'))) {
-                        $members[] = $node;
+                    if (is_string($prefix) && ($key === $prefix || str_starts_with((string) $key, $prefix.'.'))) {
+                        $gathered[] = $node;
                         unset($nodes[$key]);
 
                         break;
@@ -182,38 +252,57 @@ class RegistryDocsNav
                 }
             }
 
-            if ($members !== []) {
-                $sections[] = NavLink::make(title: (string) $heading, children: $members);
+            if ($gathered !== []) {
+                $sections[] = new RegistryIndexGroupData(key: (string) $heading, title: (string) $heading, href: null, groups: $gathered);
             }
         }
 
         ksort($nodes);
         $unlisted = array_values(array_filter($served, fn (NavNode $node): bool => $node->href === null || ! isset($claimed[$this->trim($node->href)])));
 
-        return [...$sections, ...array_values($nodes), ...$unlisted];
+        return [[...$sections, ...array_values($nodes)], $unlisted];
     }
 
-    private function rootLink(string $root, CatalogRow $row, ?NavNode $served): NavNode
+    /** A group as the `links` mode draws it: a heading over its roots' links, then its nested groups. */
+    private function groupLink(RegistryIndexGroupData $group): NavNode
+    {
+        return NavLink::make(
+            title: $group->title,
+            href: $group->href,
+            children: [
+                ...array_map($this->rootLink(...), $group->roots),
+                ...array_map($this->groupLink(...), $group->groups),
+            ],
+        );
+    }
+
+    /** A root as the `links` mode draws it: titled by its root, with the annotation in the title. */
+    private function rootLink(RegistryIndexRootData $entry): NavNode
+    {
+        return NavLink::make(title: $entry->note === null ? $entry->root : "{$entry->root} ({$entry->note})", href: $entry->href);
+    }
+
+    private function rootEntry(string $root, CatalogRow $row, ?NavNode $served): RegistryIndexRootData
     {
         if ($served !== null) {
-            return NavLink::make(title: $root, href: $served->href);
+            return new RegistryIndexRootData(root: $root, href: $served->href, availability: RegistryIndexAvailability::Served, note: null);
         }
 
         if ($row->kind === CatalogRow::KIND_EXTERNAL && $row->url !== null) {
-            return NavLink::make(title: $root, href: $row->url);
+            return new RegistryIndexRootData(root: $root, href: $row->url, availability: RegistryIndexAvailability::External, note: null);
         }
 
-        $note = match (true) {
-            $row->kind === CatalogRow::KIND_EXEMPT => 'no page: '.($row->exemptionClass ?? 'exempt'),
-            $row->kind === null => 'not yet documented',
+        [$availability, $note] = match (true) {
+            $row->kind === CatalogRow::KIND_EXEMPT => [RegistryIndexAvailability::Exempt, 'no page: '.($row->exemptionClass ?? 'exempt')],
+            $row->kind === null => [RegistryIndexAvailability::NotDocumented, 'not yet documented'],
             // The owning package is not installed here: the plainest answer, and one that holds
             // even where the runtime index cannot be read (unbaked, mid-boot).
-            $row->owner !== null && ! isset(($this->installed ??= $this->packages->installed())[$row->owner]) => 'not available on this host',
-            $this->availability->knownLocally($root) === false => 'not available on this host',
-            default => 'not published on this host',
+            $row->owner !== null && ! isset(($this->installed ??= $this->packages->installed())[$row->owner]) => [RegistryIndexAvailability::NotAvailable, 'not available on this host'],
+            $this->availability->knownLocally($root) === false => [RegistryIndexAvailability::NotAvailable, 'not available on this host'],
+            default => [RegistryIndexAvailability::NotPublished, 'not published on this host'],
         };
 
-        return NavLink::make(title: "{$root} ({$note})", href: $this->deepLink($root));
+        return new RegistryIndexRootData(root: $root, href: $this->deepLink($root), availability: $availability, note: $note);
     }
 
     private function deepLink(string $root): ?string

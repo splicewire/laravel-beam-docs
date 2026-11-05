@@ -49,6 +49,14 @@ return [
             'lead' => [],
             // group key => heading, for a group with no cluster page (e.g. 'beam' => 'Beam core').
             'titles' => [],
+            // How the section is drawn (docs-feedback ticket 07): 'links', one link per root under its
+            // group's heading, or 'index', one `beam-docs/registry-index` node that beam-docs draws as a
+            // search box over a cluster tree. Set 'index' once this host's built client carries the
+            // renderer; an older bundle draws the node as a heading over cluster links only.
+            'widget' => env('BEAM_DOCS_REGISTRIES_NAV_WIDGET', 'links'),
+            // The index node's title, and the heading of the served pages the catalog does not list.
+            'index_title' => 'Registry index',
+            'unlisted_title' => 'On this host',
         ],
     ],
 

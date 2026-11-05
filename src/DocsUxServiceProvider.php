@@ -5,6 +5,7 @@ namespace Splicewire\Beam\Docs;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Rushing\DataNav\NavKindRegistry;
 use Splicewire\Beam\Docs\Access\DocsEntryRequirement;
 use Splicewire\Beam\Docs\Chrome\DocsChrome;
 use Splicewire\Beam\Docs\Http\DocsPageController;
@@ -15,6 +16,7 @@ use Splicewire\Beam\Docs\Registries\BeamDocsLinkResolver;
 use Splicewire\Beam\Docs\Registries\FamilyRegistryDocSources;
 use Splicewire\Beam\Docs\Registries\RegistryDocsNav;
 use Splicewire\Beam\Docs\Registries\RegistryDocsNavProjector;
+use Splicewire\Beam\Docs\Registries\RegistryIndexNavNode;
 use Splicewire\Beam\Docs\Search\DocsSearchOp;
 use Splicewire\Beam\Docs\Seed\DocsProvenanceTemplates;
 use Splicewire\Beam\Docs\Seed\DocsSeeder;
@@ -46,6 +48,11 @@ class DocsUxServiceProvider extends ServiceProvider
         $this->app->extend(NavProjector::class, fn (NavProjector $projector, $app) => $projector instanceof RegistryDocsNavProjector
             ? $projector
             : new RegistryDocsNavProjector($projector, $app->make(RegistryDocsNav::class)));
+        // docs-feedback ticket 07: the registry index node (`beam.docs.registries.nav.widget` = `index`) is a kind of
+        // its own, so it keeps its `index` payload through a `NavTree::from()` round trip.
+        $this->callAfterResolving(NavKindRegistry::class, fn (NavKindRegistry $kinds) => $kinds->register(
+            RegistryIndexNavNode::KIND, RegistryIndexNavNode::class, by: 'splicewire/laravel-beam-docs',
+        ));
         if (defined(ThemeSchemas::class.'::SOURCES')) {
             $this->app->tag([DocsThemeNamespaceSource::class], ThemeSchemas::SOURCES);
         }
