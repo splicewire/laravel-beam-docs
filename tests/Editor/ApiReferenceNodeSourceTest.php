@@ -6,6 +6,7 @@ use Illuminate\Container\Container;
 use PHPUnit\Framework\TestCase;
 use Splicewire\Beam\Docs\DocsUxServiceProvider;
 use Splicewire\Beam\Docs\Editor\ApiReferenceNodeSource;
+use Splicewire\Beam\Docs\Editor\DataExampleNodeSource;
 use Splicewire\Beam\Docs\Editor\RegistryRegistrantsNodeSource;
 use Splicewire\Beam\Ux\Manifest\ManifestProfileResolver;
 
@@ -35,7 +36,7 @@ class ApiReferenceNodeSourceTest extends TestCase
 
         (new DocsUxServiceProvider($app))->register();
 
-        $this->assertSame([ApiReferenceNodeSource::class, RegistryRegistrantsNodeSource::class], array_map('get_class', iterator_to_array($app->tagged(ManifestProfileResolver::MDX_SOURCES), false)));
+        $this->assertSame([ApiReferenceNodeSource::class, RegistryRegistrantsNodeSource::class, DataExampleNodeSource::class], array_map('get_class', iterator_to_array($app->tagged(ManifestProfileResolver::MDX_SOURCES), false)));
         $this->assertSame([], iterator_to_array($app->tagged(ManifestProfileResolver::PACKAGE_SOURCES), false));
     }
 
@@ -47,5 +48,15 @@ class ApiReferenceNodeSourceTest extends TestCase
         $this->assertSame('string', $nodes[0]['attrsSchema']['properties']['root']['type']);
         $this->assertSame(['root'], $nodes[0]['attrsSchema']['required']);
         $this->assertSame([], (new RegistryRegistrantsNodeSource)->nodeClassesFor('chrome'));
+    }
+
+    public function test_it_declares_the_data_example_with_its_source(): void
+    {
+        $nodes = (new DataExampleNodeSource)->manifest('content')['nodes'];
+
+        $this->assertSame(['DataExample'], array_column($nodes, 'name'));
+        $this->assertSame('string', $nodes[0]['attrsSchema']['properties']['source']['type']);
+        $this->assertTrue($nodes[0]['admitsText'] ?? false, 'its children are the two fenced code blocks');
+        $this->assertSame([], (new DataExampleNodeSource)->nodeClassesFor('chrome'));
     }
 }
