@@ -3,6 +3,7 @@
 namespace Splicewire\Beam\Docs;
 
 use Illuminate\Support\Facades\Route;
+use Rushing\Popcorn\Registries\ScopesRegistrant;
 use Rushing\Surgeon\Operation\SuggestsOperations;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -24,6 +25,14 @@ use Splicewire\Beam\Surgeon\SdkNameConventionAudit;
 
 class BeamDocsServiceProvider extends PackageServiceProvider
 {
+    use ScopesRegistrant;
+
+    /** Every registry write in register()/boot() that names no `$by` records this package. */
+    protected function registrant(): string
+    {
+        return 'splicewire/laravel-beam-docs';
+    }
+
     public function configurePackage(Package $package): void
     {
         $package->name('laravel-beam-docs')->hasConfigFile('beam/docs')
