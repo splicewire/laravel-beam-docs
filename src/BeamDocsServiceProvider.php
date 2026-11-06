@@ -72,7 +72,7 @@ class BeamDocsServiceProvider extends PackageServiceProvider
             dirname(__DIR__).'/stubs/scribe/scribe.php' => config_path('scribe.php'),
         ], 'beam-scribe');
 
-        $this->commands([GenerateOpenApiCommand::class, PublishScalarCommand::class, ExportFrontendContractsCommand::class, Console\ProvenanceBackfillCommand::class, Console\ProvenanceHistoryCommand::class, Console\ProvenanceMoveCommand::class, Console\RegistryCatalogCommand::class, Console\RegistryScaffoldCommand::class]);
+        $this->commands([GenerateOpenApiCommand::class, PublishScalarCommand::class, ExportFrontendContractsCommand::class, Console\ProvenanceBackfillCommand::class, Console\ProvenanceHistoryCommand::class, Console\ProvenanceMoveCommand::class, Console\RegistryCatalogCommand::class, Console\RegistryScaffoldCommand::class, Console\DocsReconcileCommand::class]);
 
         $this->app->make(BeamInstallManifest::class)->register(
             package: 'splicewire/laravel-beam-docs',
@@ -91,6 +91,7 @@ class BeamDocsServiceProvider extends PackageServiceProvider
         $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsLinkTargetsAudit::class);
         $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsLocalEnvAudit::class);
         $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsDivergedAudit::class);
+        $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsOriginMissingAudit::class);
         $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsReferenceSubjectAudit::class);
         $manifest->register('splicewire/laravel-beam-docs', Doctor\RegistryDocsCoverageAudit::class); // advisory (registry-docs ticket 04)
         if (interface_exists(SuggestsOperations::class)) {

@@ -25,7 +25,12 @@ class DocsSeeder extends Seeder
             return;
         }
         $this->seedRoot();
-        (new DocsSourcesSeeder)->run();
+        // The seeding command travels with it, so what the sources step says (unreadable rows, the reconcile plan) is printed.
+        $sources = new DocsSourcesSeeder;
+        if ($this->command !== null) {
+            $sources->setCommand($this->command);
+        }
+        $sources->run();
     }
 
     private function seedRoot(): void

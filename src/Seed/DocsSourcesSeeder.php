@@ -4,6 +4,8 @@ namespace Splicewire\Beam\Docs\Seed;
 
 use Illuminate\Database\Seeder;
 use RuntimeException;
+use Splicewire\Beam\Docs\Reconcile\DocsReconciler;
+use Splicewire\Beam\Docs\Reconcile\ReconcileItem;
 use Splicewire\Beam\Ux\Containment\EntryPathResolver;
 use Splicewire\Beam\Ux\Disk\RegisterEntriesFromDisk;
 use Splicewire\Beam\Ux\Models\BeamUxEntry;
@@ -37,6 +39,26 @@ class DocsSourcesSeeder extends Seeder
         foreach ((array) config('beam.docs.sources', []) as $source) {
             $this->register((array) $source);
         }
+
+        $this->reconcilePlan();
+    }
+
+    /**
+     * The seed-time reconcile step (docs-feedback ticket 15), as a dry run: once every source is registered, a row whose
+     * file moved or went away is named with its planned take-down. Said, never applied and never thrown: a take-down is a
+     * Release with an author, so `splicewire:beam:docs:reconcile --apply --actor=` is the operator's explicit act.
+     */
+    private function reconcilePlan(): void
+    {
+        $plan = array_values(array_filter(app(DocsReconciler::class)->plan(), fn (ReconcileItem $item) => $item->action !== DocsReconciler::DOWN));
+        if ($plan === []) {
+            return;
+        }
+        $this->command?->warn(sprintf('Docs sources: %d published row(s) whose source file moved or went away (dry run; nothing taken down):', count($plan)));
+        foreach ($plan as $item) {
+            $this->command?->warn('  '.$item->describe());
+        }
+        $this->command?->warn('  Apply with: splicewire:beam:docs:reconcile --apply --actor=<user id or email>');
     }
 
     /** @param  array{path?: string, under?: ?string, type?: ?string, ignore?: list<string>, package?: ?string}  $source */

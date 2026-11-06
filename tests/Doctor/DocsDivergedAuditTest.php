@@ -96,7 +96,7 @@ class DocsDivergedAuditTest extends TestCase
         $this->assertStringContainsString(ThrowingDivergedLens::DIAGNOSTIC, $finding->detail, 'the first diagnostic is named');
     }
 
-    public function test_a_disk_row_whose_origin_file_is_gone_is_named_on_its_own_line_not_as_diverged(): void
+    public function test_a_disk_row_whose_origin_file_is_gone_is_counted_and_left_to_its_own_check(): void
     {
         $root = $this->sources(['guide.mdx']);
         $this->entry('guide', null, 'Guide', "# Guide\nSteps.", Provenance::disk('guide.mdx'));
@@ -105,26 +105,27 @@ class DocsDivergedAuditTest extends TestCase
 
         $finding = $this->finding();
 
-        $this->assertSame(DoctorStatus::Warn, $finding->status, 'a published page whose origin went away warns');
+        // docs-feedback ticket 15: a missing origin is docs.origin-missing's WARN, not a sub-line of this check.
+        $this->assertSame(DoctorStatus::Pass, $finding->status, $finding->detail);
         $this->assertStringContainsString('1 checked · 0 diverged', $finding->detail);
-        $this->assertMatchesRegularExpression('/\n1 origin missing \(no file under the declared docs sources\): engines \(disk:engines\.mdx, published\)/', $finding->detail);
+        $this->assertStringContainsString("\n1 origin missing, not judged here: see docs.origin-missing.", $finding->detail);
+        $this->assertStringNotContainsString('engines', $finding->detail, 'never named as diverged');
         @unlink($root.'/guide.mdx');
         @rmdir($root);
     }
 
-    public function test_an_unpublished_row_whose_origin_file_is_gone_is_informational(): void
+    public function test_only_a_missing_origin_is_still_conclusive(): void
     {
         $root = $this->sources(['guide.mdx']);
-        $this->entry('guide', null, 'Guide', "# Guide\nSteps.", Provenance::disk('guide.mdx'));
-        $this->entry('engines', null, 'Engines', "# Engines\nOld words.", Provenance::disk('engines.mdx'), assertedOver: "# Engines\nOlder.");
+        $this->entry('engines', null, 'Engines', "# Engines\nOld words.", Provenance::disk('engines.mdx'));
         BeamUxEntry::query()->where('slug', 'engines')->update(['workflow_marking' => 'draft']);
 
         $finding = $this->finding();
 
         $this->assertSame(DoctorStatus::Pass, $finding->status, $finding->detail);
         $this->assertTrue($finding->conclusive);
-        $this->assertStringContainsString('1 checked · 0 diverged', $finding->detail);
-        $this->assertStringContainsString("\n1 origin missing (no file under the declared docs sources): engines (disk:engines.mdx, unpublished: draft)", $finding->detail);
+        $this->assertStringContainsString('0 checked · 0 diverged', $finding->detail);
+        $this->assertStringContainsString('1 origin missing, not judged here', $finding->detail);
         @unlink($root.'/guide.mdx');
         @rmdir($root);
     }
