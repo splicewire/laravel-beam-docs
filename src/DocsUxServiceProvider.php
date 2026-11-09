@@ -67,8 +67,9 @@ class DocsUxServiceProvider extends ServiceProvider
         // to MDX pages (laravel-beam-ux's MDX_SOURCES); a laravel-beam-ux that predates the tag offers it to nothing.
         if (defined(ManifestProfileResolver::class.'::MDX_SOURCES')) {
             // registry-docs ticket 08: <RegistryRegistrants root="…" /> on the registry pages, offered the same way, and
-            // docs-feedback ticket 09: <DataExample source="…"> around a registry page's captured example.
-            $this->app->tag([Editor\ApiReferenceNodeSource::class, Editor\RegistryRegistrantsNodeSource::class, Editor\DataExampleNodeSource::class], ManifestProfileResolver::MDX_SOURCES);
+            // docs-feedback ticket 09: <DataExample source="…"> around a registry page's captured example, and
+            // php-api-reference slice 3: <PhpApiReference /> on the seeded PHP API page.
+            $this->app->tag([Editor\ApiReferenceNodeSource::class, Editor\RegistryRegistrantsNodeSource::class, Editor\DataExampleNodeSource::class, Editor\PhpApiReferenceNodeSource::class], ManifestProfileResolver::MDX_SOURCES);
         }
     }
 

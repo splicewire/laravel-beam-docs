@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 use Splicewire\Beam\Docs\DocsUxServiceProvider;
 use Splicewire\Beam\Docs\Editor\ApiReferenceNodeSource;
 use Splicewire\Beam\Docs\Editor\DataExampleNodeSource;
+use Splicewire\Beam\Docs\Editor\PhpApiReferenceNodeSource;
 use Splicewire\Beam\Docs\Editor\RegistryRegistrantsNodeSource;
 use Splicewire\Beam\Ux\Manifest\ManifestProfileResolver;
 
@@ -36,7 +37,7 @@ class ApiReferenceNodeSourceTest extends TestCase
 
         (new DocsUxServiceProvider($app))->register();
 
-        $this->assertSame([ApiReferenceNodeSource::class, RegistryRegistrantsNodeSource::class, DataExampleNodeSource::class], array_map('get_class', iterator_to_array($app->tagged(ManifestProfileResolver::MDX_SOURCES), false)));
+        $this->assertSame([ApiReferenceNodeSource::class, RegistryRegistrantsNodeSource::class, DataExampleNodeSource::class, PhpApiReferenceNodeSource::class], array_map('get_class', iterator_to_array($app->tagged(ManifestProfileResolver::MDX_SOURCES), false)));
         $this->assertSame([], iterator_to_array($app->tagged(ManifestProfileResolver::PACKAGE_SOURCES), false));
     }
 
@@ -48,6 +49,23 @@ class ApiReferenceNodeSourceTest extends TestCase
         $this->assertSame('string', $nodes[0]['attrsSchema']['properties']['root']['type']);
         $this->assertSame(['root'], $nodes[0]['attrsSchema']['required']);
         $this->assertSame([], (new RegistryRegistrantsNodeSource)->nodeClassesFor('chrome'));
+    }
+
+    /**
+     * php-api-reference slice 3 (PRD §3): the seeded PHP API page places `<PhpApiReference />`, which takes no attributes
+     * (the component reads the configured endpoints), so it is declared beside ApiReference for the same MDX profile.
+     */
+    public function test_it_declares_the_php_api_reference_with_no_attributes(): void
+    {
+        $nodes = (new PhpApiReferenceNodeSource)->manifest('content')['nodes'];
+
+        $this->assertSame(['PhpApiReference'], array_column($nodes, 'name'));
+        $this->assertSame('object', $nodes[0]['attrsSchema']['type']);
+        $this->assertEquals(new \stdClass, $nodes[0]['attrsSchema']['properties']);
+        $this->assertSame([], $nodes[0]['attrsSchema']['required']);
+        $this->assertFalse($nodes[0]['attrsSchema']['additionalProperties']);
+        $this->assertSame([], (new PhpApiReferenceNodeSource)->nodeClassesFor('chrome'));
+        $this->assertSame(['html'], (new PhpApiReferenceNodeSource)->docAdmitsFor('content'));
     }
 
     public function test_it_declares_the_data_example_with_its_source(): void
