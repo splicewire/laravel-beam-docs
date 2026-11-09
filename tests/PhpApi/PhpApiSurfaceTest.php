@@ -222,6 +222,60 @@ class PhpApiSurfaceTest extends TestCase
         $this->assertSame(self::ALL_OFF, $this->surfaces($reader));
     }
 
+    /**
+     * php-api-reference slice 5 amend (review `50561c44`, finding t11, found on the owned flagship): the advertised surface
+     * must answer from the same validated package indexes the read ops need. A manifest alone is not a usable reference:
+     * with one required (`ok`) index missing or unreadable the ops are a uniform 404, so the header, nav, search, sitemap
+     * and page must be off too, never an empty 200 shell. Each case breaks ONE required index, then regenerates and
+     * proves the same surfaces come back, so the off state is the break and not a deny-by-default.
+     */
+    private function assertRequiredIndexBreakIsOffThenRestored(callable $break, string $why): void
+    {
+        $this->assertOnThen($break, $why);
+        $this->generate();
+        $this->assertSame(self::ALL_ON, $this->surfaces(), 'regenerating restores every surface');
+    }
+
+    private function indexFile(string $package): string
+    {
+        return $this->out.'/'.ArtifactWriter::indexPath($package);
+    }
+
+    public function test_a_missing_required_package_index_turns_every_surface_off(): void
+    {
+        $this->assertRequiredIndexBreakIsOffThenRestored(fn () => unlink($this->indexFile('fixture/php-api-a')), 'a required index that is gone leaves no usable reference');
+    }
+
+    public function test_a_malformed_required_package_index_turns_every_surface_off_even_for_another_packages_symbol(): void
+    {
+        // pkg-c publishes nothing, but its index is still required (`ok`): the probed symbol lives in pkg-a, as in t11.
+        $this->assertRequiredIndexBreakIsOffThenRestored(fn () => file_put_contents($this->indexFile('fixture/php-api-c'), '[1,2,'), 'a malformed required index is off, not an empty shell');
+    }
+
+    public function test_a_required_package_index_with_a_malformed_row_turns_every_surface_off(): void
+    {
+        $this->assertRequiredIndexBreakIsOffThenRestored(function (): void {
+            $index = json_decode((string) file_get_contents($this->indexFile('fixture/php-api-a')), true);
+            unset($index['symbols'][0]['fqn']);
+            file_put_contents($this->indexFile('fixture/php-api-a'), json_encode($index));
+        }, 'an index row the reads would refuse is off for the advertised surface too');
+    }
+
+    public function test_an_unresolved_package_beside_a_usable_one_keeps_the_reference_on(): void
+    {
+        // Partial control: an unresolved package has no index by construction (status not ok), so it is skipped exactly as
+        // the reads skip it. The rule is "every REQUIRED index readable", not "every configured package resolved".
+        config(['beam.docs.php_api.packages' => [...$this->fixtures(), 'fixture/php-api-not-here' => sys_get_temp_dir().'/beam-docs-php-api-no-such-dir-'.bin2hex(random_bytes(4))]]);
+        $this->generate();
+
+        $manifest = json_decode((string) file_get_contents($this->out.'/manifest.json'), true);
+        $statuses = array_column($manifest['packages'], 'status', 'name');
+        $this->assertSame('unresolved', $statuses['fixture/php-api-not-here']);
+        $this->assertSame('ok', $statuses['fixture/php-api-a']);
+
+        $this->assertSame(self::ALL_ON, $this->surfaces(), 'an unresolved package does not take the usable reference down');
+    }
+
     public function test_disabled_docs_turn_the_php_api_off_too(): void
     {
         $this->assertOnThen(fn () => config(['beam.docs.enabled' => false]), 'beam.docs.enabled=false is off');
