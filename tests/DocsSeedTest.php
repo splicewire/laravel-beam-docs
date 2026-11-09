@@ -28,7 +28,7 @@ class DocsSeedTest extends TestCase
         config(['beam.ux.compile.disk' => 'docs-artifacts', 'beam.docs.segment' => '/handbook', 'beam.docs.sources' => []]);
         $sources = [];
         $driver = Mockery::mock(StorageDriver::class);
-        $driver->shouldReceive('write')->times(3)->andReturnUsing(function ($key, $body, $namespace) use (&$sources) {
+        $driver->shouldReceive('write')->times(4)->andReturnUsing(function ($key, $body, $namespace) use (&$sources) {
             $key = (string) Str::uuid();
             $sources[$key] = $body;
 
@@ -38,7 +38,7 @@ class DocsSeedTest extends TestCase
         $compiler = Mockery::mock(EntryBodyCompiler::class);
         $compiler->shouldReceive('handles')->andReturnTrue();
         $compiled = [];
-        $compiler->shouldReceive('compile')->times(3)->andReturnUsing(function ($entry, $body) use (&$compiled) {
+        $compiler->shouldReceive('compile')->times(4)->andReturnUsing(function ($entry, $body) use (&$compiled) {
             $compiled[$entry->slug] = $body;
 
             return 'export default () => null;';
@@ -62,7 +62,7 @@ class DocsSeedTest extends TestCase
         $this->assertSame('Edited handbook', $root->fresh()->title);
         $this->assertSame('/edited', $root->fresh()->segment);
         $this->assertSame(['auth'], $root->fresh()->access);
-        $this->assertCount(3, $sources);
+        $this->assertCount(4, $sources);
     }
 
     /**

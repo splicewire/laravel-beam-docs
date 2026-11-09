@@ -65,7 +65,7 @@ final class PhpApiGenerator
 
             foreach ($roots['files'] as $file) {
                 $code = (string) @file_get_contents($package['path'].'/'.$file);
-                hash_update($digest, $file."\0".hash('sha256', $code)."\n");
+                hash_update($digest, SourceRoots::digestLine($file, $code));
 
                 try {
                     $ast = $parser->parse($code) ?? [];

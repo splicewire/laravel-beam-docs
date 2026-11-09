@@ -95,6 +95,7 @@ class BeamDocsServiceProvider extends PackageServiceProvider
         $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsOriginMissingAudit::class);
         $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsReferenceSubjectAudit::class);
         $manifest->register('splicewire/laravel-beam-docs', Doctor\RegistryDocsCoverageAudit::class); // advisory (registry-docs ticket 04)
+        $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsPhpApiAudit::class); // php-api-reference slice 2
         if (interface_exists(SuggestsOperations::class)) {
             $manifest->register('splicewire/laravel-beam-docs', SdkNameConventionAudit::class);
         }

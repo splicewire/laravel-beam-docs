@@ -5,6 +5,7 @@ namespace Splicewire\Beam\Docs\Seed;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Splicewire\Beam\Docs\Access\PhpApiEntryRequirement;
 use Splicewire\Beam\Docs\OpenApi\ReferenceSubject;
 use Splicewire\Beam\Ux\Models\BeamUxEntry;
 use Splicewire\Beam\Ux\Seed\SeedsEntries;
@@ -13,6 +14,9 @@ use Splicewire\Beam\Ux\Seed\StubContent;
 class DocsSeeder extends Seeder
 {
     use SeedsEntries;
+
+    /** The seeded PHP API reference page (php-api-reference slice 2); its read ops gate through this row. */
+    public const PHP_API_SLUG = 'docs-php-api';
 
     /**
      * The docs root and its packaged pages, then every declared docs source ({@see DocsSourcesSeeder}). One seed step
@@ -67,6 +71,19 @@ class DocsSeeder extends Seeder
             'parent_id' => $root->getKey(),
         ], $subject->isProduct() && ! $subject->hasArtifact() ? ['access' => []] : []), origin: \Splicewire\Beam\Ux\Provenance\Provenance::package('splicewire/laravel-beam-docs'));
 
+        // php-api-reference slice 2: the PHP API reference, beside the OpenAPI one. ALWAYS seeded: whether it shows is the
+        // `beam-docs-php-api` requirement's answer at request time (a non-empty package list and an available artifact),
+        // so changing `beam.docs.php_api.packages` never needs a reseed. The requirement is re-asserted on an existing
+        // row (the root's adopt() shape), so the read ops, which gate through this row, cannot outlive the surface.
+        $phpApi = $this->stub('php-api.mdx');
+        $php = $this->seedPage(self::PHP_API_SLUG, $phpApi->body, array_merge($phpApi->columns(), [
+            'parent_id' => $root->getKey(),
+            'requirements' => [PhpApiEntryRequirement::NAME],
+        ]), origin: \Splicewire\Beam\Ux\Provenance\Provenance::package('splicewire/laravel-beam-docs'));
+        if ($php !== null) {
+            $this->requireOn($php, PhpApiEntryRequirement::NAME);
+        }
+
         // registry-docs ticket 02: the registries spine anchor — the section every generic family
         // `docs/registries/` source hangs under, so a registry page serves at
         // `{segment}/registries/<root>` with the dotted root verbatim as its slug (rulings 2–3).
@@ -85,10 +102,16 @@ class DocsSeeder extends Seeder
 
     public function adopt(BeamUxEntry $root): void
     {
-        $requirements = $root->requirements ?? [];
-        if (! in_array('beam-docs', $requirements, true)) {
-            $root->requirements = [...$requirements, 'beam-docs'];
-            $root->save();
+        $this->requireOn($root, 'beam-docs');
+    }
+
+    /** Append a requirement the row lacks, keeping the site's own; a no-op when it is there. */
+    private function requireOn(BeamUxEntry $entry, string $requirement): void
+    {
+        $requirements = $entry->requirements ?? [];
+        if (! in_array($requirement, $requirements, true)) {
+            $entry->requirements = [...$requirements, $requirement];
+            $entry->save();
         }
     }
 

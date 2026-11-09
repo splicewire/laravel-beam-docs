@@ -24,6 +24,26 @@ final class SourceRoots
     /** Composer's classmap extensions (AutoloadGenerator passes these to ClassMapGenerator). */
     public const CLASSMAP_EXTENSIONS = ['php', 'inc', 'hh'];
 
+    /**
+     * One file's contribution to a package's `sourceDigest`. ONE definition for the generator that writes the digest
+     * and the `docs.php-api` audit that recomputes it (php-api-reference slice 2), so the two cannot drift.
+     */
+    public static function digestLine(string $file, string $code): string
+    {
+        return $file."\0".hash('sha256', $code)."\n";
+    }
+
+    /** The package's `sourceDigest` over {@see files()}, read as bytes: nothing is parsed, loaded or executed. */
+    public function digest(string $packagePath): string
+    {
+        $digest = hash_init('sha256');
+        foreach ($this->files($packagePath)['files'] as $file) {
+            hash_update($digest, self::digestLine($file, (string) @file_get_contents($packagePath.'/'.$file)));
+        }
+
+        return hash_final($digest);
+    }
+
     /** @return array{files: list<string>, problems: list<string>} */
     public function files(string $packagePath): array
     {

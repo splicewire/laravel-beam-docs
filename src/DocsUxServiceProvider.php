@@ -7,10 +7,14 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Rushing\DataNav\NavKindRegistry;
 use Splicewire\Beam\Docs\Access\DocsEntryRequirement;
+use Splicewire\Beam\Docs\Access\PhpApiEntryRequirement;
 use Splicewire\Beam\Docs\Chrome\DocsChrome;
 use Splicewire\Beam\Docs\Http\DocsPageController;
 use Splicewire\Beam\Docs\Http\DocsReadAccess;
+use Splicewire\Beam\Docs\Http\PhpApiReadGate;
 use Splicewire\Beam\Docs\Http\RegistryDocsController;
+use Splicewire\Beam\Docs\PhpApi\PhpApiIndexOp;
+use Splicewire\Beam\Docs\PhpApi\PhpApiSymbolOp;
 use Splicewire\Beam\Docs\Publishing\Http\EnsurePublishingHost;
 use Splicewire\Beam\Docs\Registries\BeamDocsLinkResolver;
 use Splicewire\Beam\Docs\Registries\FamilyRegistryDocSources;
@@ -36,6 +40,8 @@ class DocsUxServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind('beam.ux.requirement.beam-docs', DocsEntryRequirement::class);
+        // php-api-reference slice 2: the seeded PHP API page's requirement; every consumer and both read ops ask it.
+        $this->app->bind('beam.ux.requirement.'.PhpApiEntryRequirement::NAME, PhpApiEntryRequirement::class);
         // registry-docs ticket 02: supersede beam-ux's null DocsLinkResolver default. A plain bind()
         // behind the posture "beam-docs is installed" (host-bindings supersession lane, the
         // beam-tenancy shape) — order-independent against beam-ux's bindIf by construction. The
@@ -98,6 +104,11 @@ class DocsUxServiceProvider extends ServiceProvider
         // principal inside the op.
         Route::middleware(['web', DocsReadAccess::class, 'throttle:60,1'])->group(function (): void {
             Particle::ops('beam/docs', 'beam-docs', [DocsSearchOp::class]);
+            // php-api-reference slice 2: the PHP API reads, in the same group. PhpApiReadGate answers 404 unless this
+            // principal can open the seeded PHP API page, before the controller validates any input.
+            Route::middleware([PhpApiReadGate::class])->group(function (): void {
+                Particle::ops('beam/docs', 'beam-docs', [PhpApiIndexOp::class, PhpApiSymbolOp::class]);
+            });
         });
         $this->publishes([__DIR__.'/../stubs/docs' => resource_path('beam-ux/docs')], 'beam-ux-docs');
         $this->app->make(BeamSeedManifest::class)->register('splicewire/laravel-beam-docs', DocsSeeder::class, order: 25);
