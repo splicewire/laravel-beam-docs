@@ -20,4 +20,10 @@ class PhpApiIndexData extends BeamData
         /** @var list<PhpApiPackageData> */
         public array $packages,
     ) {}
+
+    /** @return array<string, list<string>> 02b: a list, empty allowed ({@see PhpApiSymbolData::rules()}). */
+    public static function rules(): array
+    {
+        return ['packages' => ['present', 'array', 'list']];
+    }
 }

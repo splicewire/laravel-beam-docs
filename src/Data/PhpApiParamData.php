@@ -21,4 +21,10 @@ class PhpApiParamData extends BeamData
         /** @var list<PhpApiAttributeData> */
         public array $attributes,
     ) {}
+
+    /** @return array<string, list<string>> 02b: a list, empty allowed ({@see PhpApiSymbolData::rules()}). */
+    public static function rules(): array
+    {
+        return ['attributes' => ['present', 'array', 'list']];
+    }
 }

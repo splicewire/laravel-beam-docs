@@ -49,6 +49,11 @@ class PhpApiMemberData extends BeamData
     /** @return array<string, list<string>> `doc` may be empty: present and a list of strings ({@see PhpApiSymbolData::rules()}). */
     public static function rules(): array
     {
-        return ['doc' => ['present', 'array', 'list'], 'doc.*' => ['string']];
+        // 02b: the structured collections are lists too; the Optional ones only when present (absent stays absent).
+        return [
+            'doc' => ['present', 'array', 'list'], 'doc.*' => ['string'],
+            'attributes' => ['present', 'array', 'list'], 'tags' => ['present', 'array', 'list'],
+            'params' => ['sometimes', 'array', 'list'], 'templates' => ['sometimes', 'array', 'list'],
+        ];
     }
 }

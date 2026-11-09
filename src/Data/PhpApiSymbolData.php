@@ -58,17 +58,27 @@ class PhpApiSymbolData extends BeamData
     ) {}
 
     /**
-     * The plain string lists the generator writes may be EMPTY: present and a list of strings, not `required` (which
-     * Laravel fails on `[]`). Read by {@see PhpApiArtifact} through `validateAndCreate()`.
+     * Every declared list is a LIST (read by {@see PhpApiArtifact} through `validateAndCreate()`):
+     *
+     * - the plain string lists may be EMPTY: present and a list of strings, not `required` (which Laravel fails on `[]`);
+     * - 02b (slice 2 final review 8b7f533b): the structured collections add Laravel's `list` beside the `present|array`
+     *   laravel-data infers, because `array` admits string keys and laravel-data keeps them through hydration and
+     *   transformation, so valid items under named keys would be served as a JSON object. They are rejected, never
+     *   normalized. Only the key's own rule is overwritten; the element rules (`methods.*.…`) are still inferred.
      *
      * @return array<string, list<string>>
      */
     public static function rules(): array
     {
+        $list = ['present', 'array', 'list'];
+
         return [
-            'modifiers' => ['present', 'array', 'list'], 'modifiers.*' => ['string'],
-            'doc' => ['present', 'array', 'list'], 'doc.*' => ['string'],
-            'implementers' => ['present', 'array', 'list'], 'implementers.*' => ['string'],
+            'modifiers' => $list, 'modifiers.*' => ['string'],
+            'doc' => $list, 'doc.*' => ['string'],
+            'implementers' => $list, 'implementers.*' => ['string'],
+            'templates' => $list, 'extends' => $list, 'implements' => $list, 'traits' => $list, 'attributes' => $list,
+            'tags' => $list, 'constants' => $list, 'cases' => $list, 'properties' => $list, 'methods' => $list,
+            'see' => $list, 'inherited' => $list,
         ];
     }
 }

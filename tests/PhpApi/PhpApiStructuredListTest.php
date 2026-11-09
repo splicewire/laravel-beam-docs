@@ -2,8 +2,8 @@
 
 namespace Splicewire\Beam\Docs\Tests\PhpApi;
 
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;

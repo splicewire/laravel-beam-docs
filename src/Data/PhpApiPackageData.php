@@ -18,4 +18,10 @@ class PhpApiPackageData extends BeamData
         /** @var list<PhpApiSymbolRowData> */
         public array $symbols,
     ) {}
+
+    /** @return array<string, list<string>> 02b: a list, empty allowed ({@see PhpApiSymbolData::rules()}). */
+    public static function rules(): array
+    {
+        return ['symbols' => ['present', 'array', 'list']];
+    }
 }
