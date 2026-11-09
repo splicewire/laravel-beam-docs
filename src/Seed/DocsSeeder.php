@@ -36,7 +36,7 @@ class DocsSeeder extends Seeder
     private function seedRoot(): void
     {
         if (! Schema::hasColumn('beam_ux_entries', 'requirements')) {
-            throw new RuntimeException('Run the Beam UX requirements migration before adopting documentation.');
+            throw new RuntimeException('beam_ux_entries has no requirements column: publish and run the Beam UX migrations (create_beam_ux_entries_table carries it) before seeding documentation.');
         }
         $root = $this->existingRoot();
         if ($root !== null) {

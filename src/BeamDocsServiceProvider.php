@@ -36,7 +36,9 @@ class BeamDocsServiceProvider extends PackageServiceProvider
     public function configurePackage(Package $package): void
     {
         $package->name('laravel-beam-docs')->hasConfigFile('beam/docs')
-            ->hasMigrations(['create_beam_docs_publications_table', 'shared/adopt_docs_entry_requirement']);
+            // migration-flatten 07 retired shared/adopt_docs_entry_requirement (02 rulings: delete-data): DocsSeeder adopts
+            // the root on seed. See BeamDocsRetiredMigrationAudit.
+            ->hasMigrations(['create_beam_docs_publications_table']);
     }
 
     public function packageRegistered(): void
@@ -92,6 +94,8 @@ class BeamDocsServiceProvider extends PackageServiceProvider
         $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsLocalEnvAudit::class);
         $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsDivergedAudit::class);
         $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsOriginMissingAudit::class);
+        // Published copies of migrations this package has RETIRED (migration-flatten 07). Advisory.
+        $manifest->register('splicewire/laravel-beam-docs', Doctor\BeamDocsRetiredMigrationAudit::class);
         $manifest->register('splicewire/laravel-beam-docs', Doctor\DocsReferenceSubjectAudit::class);
         $manifest->register('splicewire/laravel-beam-docs', Doctor\RegistryDocsCoverageAudit::class); // advisory (registry-docs ticket 04)
         if (interface_exists(SuggestsOperations::class)) {
