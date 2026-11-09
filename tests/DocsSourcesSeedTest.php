@@ -138,7 +138,7 @@ class DocsSourcesSeedTest extends TestCase
 
         $this->assertTrue(BeamUxEntry::query()->where('slug', 'docs')->exists(), 'The docs root still seeds.');
         $this->assertTrue(BeamUxEntry::query()->where('slug', 'docs-api')->exists(), 'docs-api still seeds.');
-        $this->assertEqualsCanonicalizing(['using', 'deploy', 'scale'], BeamUxEntry::query()->whereNotIn('slug', ['site', 'docs', 'docs-api', 'docs-registries'])->pluck('slug')->all());
+        $this->assertEqualsCanonicalizing(['using', 'deploy', 'scale'], BeamUxEntry::query()->whereNotIn('slug', ['site', 'docs', 'docs-api', 'docs-php-api', 'docs-registries'])->pluck('slug')->all());
     }
 
     private function finding(): Finding
