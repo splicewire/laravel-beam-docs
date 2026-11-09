@@ -41,6 +41,14 @@ class BeamDocsServiceProvider extends PackageServiceProvider
 
     public function packageRegistered(): void
     {
+        // mergeConfigFrom is shallow: a host `php_api` key replaces the whole block, so a host that lists only `packages`
+        // would lose the shipped `references` and a public artifact would keep its citations. Fill only the php_api keys
+        // the host did not set; a key it did set (a custom or an empty references list included) is kept as given.
+        config(['beam.docs.php_api' => array_replace(
+            (require dirname(__DIR__).'/config/beam/docs.php')['php_api'],
+            (array) config('beam.docs.php_api', []),
+        )]);
+
         config(['data-schemas.validation_mapping' => [
             ReleaseVersion::class => ReleaseVersion::class.'::jsonSchema',
             ...(array) config('data-schemas.validation_mapping', []),
