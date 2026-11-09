@@ -22,6 +22,10 @@ use Splicewire\Beam\Docs\Data\PhpApiSymbolData;
  *   and reference patterns (`inputDigest`), and every package row is well formed: a string `name` and `status`, a
  *   string-or-null `version`, an integer `published`, and an `index` that is exactly the writer's path for an `ok` row
  *   and null otherwise;
+ * - every package index the reads need (each `ok` row's) is readable and well formed, judged by the SAME
+ *   {@see indexes()} the index and symbol reads use; a row whose status is not `ok` (an unresolved package) has no index
+ *   and is skipped, exactly as the reads skip it (slice 5 amend, review 50561c44 finding t11: a manifest alone left the
+ *   header, nav, search, sitemap and page advertising a reference whose reads were all 404);
  * - at least one symbol is published.
  *
  * Anything else is off, never an error: a mismatched or malformed artifact must not serve the wrong content, or a 500.
@@ -78,9 +82,17 @@ final class PhpApiArtifact
         return $manifest;
     }
 
+    /**
+     * Whether the reference is usable, which is what every advertised surface shows: the validated manifest AND the
+     * validated required package indexes with at least one published row. Cost: the manifest plus each `ok` package's
+     * index, read and checked once per call (no symbol document, no source, no generation). There is no cache, so an
+     * artifact or config change is seen by the next call.
+     */
     public function available(): bool
     {
-        return $this->manifest() !== null;
+        $indexes = $this->indexes();
+
+        return $indexes !== null && array_sum(array_map(fn (array $package): int => count($package['rows']), $indexes['packages'])) > 0;
     }
 
     /** Every generated package with its published symbol rows, typed; null when off or any needed index is malformed. */
