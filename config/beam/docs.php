@@ -79,6 +79,30 @@ return [
         'middleware' => null,
     ],
 
+    // PHP API reference (php-api-reference slice 1; owner PRD 2026-11-06): a build-time static extract of the listed
+    // packages. REGENERATION IS A COMMAND (`splicewire:beam:docs:php-api:generate`); nothing generates on a request.
+    'php_api' => [
+        // `vendor/name` (installed here) or `vendor/name => path` (a package this host does not install). Empty: off,
+        // and the command is a no-op.
+        'packages' => [],
+        // Where the artifact is written. Null: storage_path('app/beam-docs/php-api').
+        'artifact' => null,
+        // `public` publishes only class-level `@api` symbols, strips citations and withholds paragraphs that still
+        // carry a reference; `internal` shows every non-private symbol and its whole comment. `@internal` is excluded
+        // under both. Null: `public` when beam.docs.visibility is `public`, else `internal`.
+        'audience' => env('BEAM_DOCS_PHP_API_AUDIENCE'),
+        // What counts as a reference (a ticket, ADR, ruling or map slug) in a docblock paragraph (owner ruling items 1-2).
+        'references' => [
+            '/\b(?:launch |registry-docs |docs-feedback |make-surface )?tickets? ?#?\d+[a-z]?\b/i',
+            '/\bADR[- ]?\d+\b/i',
+            '/\b(?:owner |orch[- ]?\w* )?rulings?\b(?: [A-Z0-9][\w.-]*)?/i',
+            '/\b(?:orch|owner|lead)[\w@.-]* \d{1,2}:\d{2}Z\b/i',
+            // Tracker keys such as APP-09b or TOWER-14; standards such as PSR-4, UTF-8, SHA-256 or RFC-7231 are not references.
+            '/\b(?!(?:PSR|UTF|SHA|MD|RFC|ISO|HTTP|TLS|AES|ES|ECMA|PHP|X)-\d)[A-Z][A-Z0-9]{1,9}-\d+[a-z]?\b/',
+            '/\b[a-z][a-z0-9]*(?:-[a-z0-9]+)+ (?:ticket|slice|ruling|DM|map) ?[\w.]*\d\w*\b/i',
+        ],
+    ],
+
     'scalar' => [
         'enabled' => env('BEAM_DOCS_SCALAR_ENABLED', false),
         'namespace' => env('BEAM_DOCS_SCALAR_NAMESPACE'),

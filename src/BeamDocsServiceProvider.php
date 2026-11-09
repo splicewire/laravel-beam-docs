@@ -72,7 +72,7 @@ class BeamDocsServiceProvider extends PackageServiceProvider
             dirname(__DIR__).'/stubs/scribe/scribe.php' => config_path('scribe.php'),
         ], 'beam-scribe');
 
-        $this->commands([GenerateOpenApiCommand::class, PublishScalarCommand::class, ExportFrontendContractsCommand::class, Console\ProvenanceBackfillCommand::class, Console\ProvenanceHistoryCommand::class, Console\ProvenanceMoveCommand::class, Console\RegistryCatalogCommand::class, Console\RegistryScaffoldCommand::class, Console\DocsReconcileCommand::class]);
+        $this->commands([GenerateOpenApiCommand::class, PublishScalarCommand::class, ExportFrontendContractsCommand::class, Console\ProvenanceBackfillCommand::class, Console\ProvenanceHistoryCommand::class, Console\ProvenanceMoveCommand::class, Console\RegistryCatalogCommand::class, Console\RegistryScaffoldCommand::class, Console\DocsReconcileCommand::class, Console\GeneratePhpApiCommand::class]);
 
         $this->app->make(BeamInstallManifest::class)->register(
             package: 'splicewire/laravel-beam-docs',
@@ -82,7 +82,8 @@ class BeamDocsServiceProvider extends PackageServiceProvider
             // writes, and BEFORE tower (200): tower installs after every beam-* package because it
             // ships the estate's cross-package ALTERs, and the host pins it as the last step.
             order: 150,
-            commands: ['splicewire:beam:docs:generate'],
+            // php-api:generate is a no-op while beam.docs.php_api.packages is empty (php-api-reference slice 1).
+            commands: ['splicewire:beam:docs:generate', 'splicewire:beam:docs:php-api:generate'],
         );
 
         $manifest = $this->app->make(BeamDoctorManifest::class);

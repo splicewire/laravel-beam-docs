@@ -1,0 +1,10 @@
+{
+    "name": "fixture/php-api-a",
+    "autoload": {
+        "psr-4": { "Fixture\\ApiA\\": "src/" },
+        "classmap": ["legacy/"]
+    },
+    "autoload-dev": {
+        "psr-4": { "Fixture\\ApiA\\Tests\\": "tests/" }
+    }
+}

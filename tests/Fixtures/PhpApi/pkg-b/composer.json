@@ -1,0 +1,4 @@
+{
+    "name": "fixture/php-api-b",
+    "autoload": { "psr-4": { "Fixture\\ApiB\\": "src/" } }
+}
