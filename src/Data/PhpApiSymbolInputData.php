@@ -2,6 +2,7 @@
 
 namespace Splicewire\Beam\Docs\Data;
 
+use Schemastud\DataSchemas\Attributes\Description;
 use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
@@ -17,6 +18,7 @@ use Splicewire\Beam\Data\BeamData;
 class PhpApiSymbolInputData extends BeamData
 {
     public function __construct(
+        #[Description('Fully qualified name of the PHP class, interface, trait or enum to look up, for example `Splicewire\\Beam\\Data\\BeamData`.')]
         public ?string $fqn = null,
     ) {}
 }
