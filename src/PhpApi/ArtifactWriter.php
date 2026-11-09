@@ -20,12 +20,17 @@ use RuntimeException;
  * symbol path, so a reader never forms a path from input. No timestamps or absolute paths are written, and every list
  * is sorted, so the same input writes byte-identical files.
  *
- * The write builds the whole tree beside the target and swaps it in. An existing target is replaced only when it
- * carries this writer's marker, so a misconfigured path can never delete someone else's directory.
+ * The write builds the whole tree beside the target and swaps it in. An existing target is replaced only when it is a
+ * real directory carrying this writer's marker; a symlink target is refused outright, so a misconfigured path can never
+ * delete someone else's directory or write through a link. Every rename is checked, and a failed publication restores
+ * the previous artifact or leaves it, reported, where it can be recovered ({@see publish()}).
  */
 final class ArtifactWriter
 {
     public const MARKER = '.beam-docs-php-api';
+
+    /** @param  ?\Closure(string, string): bool  $rename  the rename used to publish; a seam for failure injection in tests */
+    public function __construct(private readonly ?\Closure $rename = null) {}
 
     /**
      * @param  list<array<string, mixed>>  $packages
@@ -132,6 +137,16 @@ final class ArtifactWriter
         $fs = new Filesystem;
         $target = rtrim($target, '/');
 
+        // Amend S1: a symlink is never a target. Replacing it would rename the link and then delete THROUGH it (the
+        // filesystem follows a root link), destroying the destination. Refused before anything is created.
+        if (is_link($target)) {
+            throw new RuntimeException("{$target} is a symlink; refusing to write the PHP API artifact through it (point beam.docs.php_api.artifact at a real directory).");
+        }
+
+        if (file_exists($target) && ! is_dir($target)) {
+            throw new RuntimeException("{$target} exists and is not a directory; refusing to replace it.");
+        }
+
         if (is_dir($target) && ! is_file($target.'/'.self::MARKER) && (new \FilesystemIterator($target))->valid()) {
             throw new RuntimeException("{$target} exists and is not a PHP API artifact (no ".self::MARKER.' marker); refusing to replace it.');
         }
@@ -159,23 +174,52 @@ final class ArtifactWriter
             foreach ($artifact['symbols'] as $path => $symbol) {
                 $put($path, $symbol);
             }
-
-            $old = null;
-
-            if (is_dir($target)) {
-                $old = $target.'.replaced-'.bin2hex(random_bytes(6));
-                rename($target, $old);
-            }
-
-            rename($staging, $target);
-
-            if ($old !== null) {
-                $fs->deleteDirectory($old);
-            }
         } catch (\Throwable $e) {
             $fs->deleteDirectory($staging);
 
             throw $e;
+        }
+
+        $this->publish($fs, $staging, $target);
+    }
+
+    /**
+     * Amend S2: swap the staged tree in, checking every rename. The previous artifact is moved aside first; if
+     * publication then fails it is moved back; if THAT fails it is kept where it is and named in the error (never
+     * deleted, never reported as success). The displaced copy is deleted only after publication is confirmed, and
+     * only when it is a real directory carrying this writer's marker.
+     */
+    private function publish(Filesystem $fs, string $staging, string $target): void
+    {
+        $rename = $this->rename ?? static fn (string $from, string $to): bool => @rename($from, $to);
+        $old = null;
+
+        if (is_dir($target)) {
+            $old = $target.'.replaced-'.bin2hex(random_bytes(6));
+
+            if (! $rename($target, $old)) {
+                $fs->deleteDirectory($staging);
+
+                throw new RuntimeException("Could not move the existing artifact at {$target} aside; nothing was replaced.");
+            }
+        }
+
+        if (! $rename($staging, $target)) {
+            $fs->deleteDirectory($staging);
+
+            if ($old === null) {
+                throw new RuntimeException("Could not publish the artifact to {$target}; nothing was replaced.");
+            }
+
+            if ($rename($old, $target)) {
+                throw new RuntimeException("Could not publish the artifact to {$target}; the previous artifact was restored.");
+            }
+
+            throw new RuntimeException("Could not publish the artifact to {$target}, and the previous artifact could not be restored: it is preserved at {$old} (not deleted).");
+        }
+
+        if ($old !== null && ! is_link($old) && is_file($old.'/'.self::MARKER)) {
+            $fs->deleteDirectory($old);
         }
     }
 }

@@ -11,11 +11,16 @@ use PhpParser\PrettyPrinter\Standard;
 
 /**
  * Collects every named class-like in one parsed file (php-api-reference slice 1): its kind, modifiers, templates,
- * parents, interfaces, traits, attributes, docblock, constants, enum cases, properties (constructor-promoted included)
- * and methods with their complete declared signatures, and the source file and line. Runs AFTER {@see NameResolver},
- * so every name is fully qualified; `@see` targets are resolved here in the file's own name context.
+ * parents, interfaces, traits WITH their adaptations (`insteadof`, aliases, visibility changes), attributes, docblock,
+ * and EVERY declared constant, enum case, property (constructor-promoted included, whatever the constructor's own
+ * visibility) and method with its complete declared signature, its attributes and its source line.
  *
- * Private members are never collected. Package code is never loaded or executed: this reads the AST only.
+ * Private and `@internal` members are collected too, marked by `visibility` and their docblock: the generator never
+ * publishes them, but needs them as SHADOWS, so a hidden override never lets the parent's member reappear and a
+ * private trait method can still be aliased public (amended for review REVISE fe468ff28, Spec 1-3 and 6).
+ *
+ * Runs AFTER {@see NameResolver}, so every name is fully qualified; `@see` targets are resolved here in the file's own
+ * name context. Package code is never loaded or executed: this reads the AST only.
  */
 final class SymbolCollector extends NodeVisitorAbstract
 {
@@ -57,7 +62,8 @@ final class SymbolCollector extends NodeVisitorAbstract
             'templates' => $doc->templates,
             'extends' => $this->parents($node),
             'implements' => $this->interfaces($node),
-            'traits' => $this->traits($node),
+            'traits' => [],
+            'traitRules' => ['insteadof' => [], 'aliases' => []],
             'backingType' => $node instanceof Stmt\Enum_ && $node->scalarType !== null ? $this->type($node->scalarType) : null,
             'attributes' => $this->attributes($node->attrGroups),
             'doc' => $doc,
@@ -71,14 +77,17 @@ final class SymbolCollector extends NodeVisitorAbstract
         ];
 
         foreach ($node->stmts as $stmt) {
-            if ($stmt instanceof Stmt\ClassConst && ! $stmt->isPrivate()) {
+            if ($stmt instanceof Stmt\TraitUse) {
+                $this->traitUse($stmt, $symbol);
+            } elseif ($stmt instanceof Stmt\ClassConst) {
                 foreach ($stmt->consts as $const) {
                     $symbol['constants'][] = [
                         'name' => $const->name->toString(),
-                        'visibility' => $stmt->isProtected() ? 'protected' : 'public',
+                        'visibility' => $this->visibility($stmt->flags),
                         'final' => $stmt->isFinal(),
                         'type' => $stmt->type !== null ? $this->type($stmt->type) : null,
                         'value' => $this->printer->prettyPrintExpr($const->value),
+                        'attributes' => $this->attributes($stmt->attrGroups),
                         'doc' => DocComment::parse($stmt->getDocComment()?->getText()),
                         'line' => $const->getStartLine(),
                     ];
@@ -86,42 +95,49 @@ final class SymbolCollector extends NodeVisitorAbstract
             } elseif ($stmt instanceof Stmt\EnumCase) {
                 $symbol['cases'][] = [
                     'name' => $stmt->name->toString(),
+                    'visibility' => 'public',
                     'value' => $stmt->expr !== null ? $this->printer->prettyPrintExpr($stmt->expr) : null,
+                    'attributes' => $this->attributes($stmt->attrGroups),
                     'doc' => DocComment::parse($stmt->getDocComment()?->getText()),
                     'line' => $stmt->getStartLine(),
                 ];
-            } elseif ($stmt instanceof Stmt\Property && ! $stmt->isPrivate()) {
+            } elseif ($stmt instanceof Stmt\Property) {
                 foreach ($stmt->props as $prop) {
                     $symbol['properties'][] = [
                         'name' => $prop->name->toString(),
-                        'visibility' => $stmt->isProtected() ? 'protected' : 'public',
+                        'visibility' => $this->visibility($stmt->flags),
                         'static' => $stmt->isStatic(),
                         'readonly' => $stmt->isReadonly(),
                         'type' => $stmt->type !== null ? $this->type($stmt->type) : null,
                         'default' => $prop->default !== null ? $this->printer->prettyPrintExpr($prop->default) : null,
                         'promoted' => false,
+                        'attributes' => $this->attributes($stmt->attrGroups),
                         'doc' => DocComment::parse($stmt->getDocComment()?->getText()),
                         'line' => $prop->getStartLine(),
                     ];
                 }
-            } elseif ($stmt instanceof Stmt\ClassMethod && ! $stmt->isPrivate()) {
+            } elseif ($stmt instanceof Stmt\ClassMethod) {
                 $symbol['methods'][] = $this->method($stmt, $kind);
 
+                // Spec 3: promotion is a property declaration of its own, whatever the constructor's visibility.
                 if ($stmt->name->toLowerString() === '__construct') {
                     foreach ($stmt->params as $param) {
-                        if ($param->flags !== 0 && ($param->flags & Modifiers::PRIVATE) === 0) {
-                            $symbol['properties'][] = [
-                                'name' => (string) $param->var->name,
-                                'visibility' => ($param->flags & Modifiers::PROTECTED) !== 0 ? 'protected' : 'public',
-                                'static' => false,
-                                'readonly' => ($param->flags & Modifiers::READONLY) !== 0,
-                                'type' => $param->type !== null ? $this->type($param->type) : null,
-                                'default' => null,
-                                'promoted' => true,
-                                'doc' => DocComment::parse($param->getDocComment()?->getText()),
-                                'line' => $param->getStartLine(),
-                            ];
+                        if ($param->flags === 0) {
+                            continue;
                         }
+
+                        $symbol['properties'][] = [
+                            'name' => (string) $param->var->name,
+                            'visibility' => $this->visibility($param->flags),
+                            'static' => false,
+                            'readonly' => ($param->flags & Modifiers::READONLY) !== 0,
+                            'type' => $param->type !== null ? $this->type($param->type) : null,
+                            'default' => null,
+                            'promoted' => true,
+                            'attributes' => $this->attributes($param->attrGroups),
+                            'doc' => DocComment::parse($param->getDocComment()?->getText()),
+                            'line' => $param->getStartLine(),
+                        ];
                     }
                 }
             }
@@ -132,11 +148,45 @@ final class SymbolCollector extends NodeVisitorAbstract
         return null;
     }
 
+    /** A trait use: the traits, then its `insteadof` and alias rules, names resolved. */
+    private function traitUse(Stmt\TraitUse $use, array &$symbol): void
+    {
+        foreach ($use->traits as $trait) {
+            $symbol['traits'][] = $trait->toString();
+        }
+
+        foreach ($use->adaptations as $rule) {
+            if ($rule instanceof Stmt\TraitUseAdaptation\Precedence) {
+                $symbol['traitRules']['insteadof'][] = [
+                    'trait' => $rule->trait?->toString(),
+                    'method' => $rule->method->toString(),
+                    'instead' => array_map(fn (Node\Name $n): string => $n->toString(), $rule->insteadof),
+                ];
+            } elseif ($rule instanceof Stmt\TraitUseAdaptation\Alias) {
+                $symbol['traitRules']['aliases'][] = [
+                    'trait' => $rule->trait?->toString(),
+                    'method' => $rule->method->toString(),
+                    'alias' => $rule->newName?->toString(),
+                    'visibility' => $rule->newModifier !== null ? $this->visibility($rule->newModifier) : null,
+                ];
+            }
+        }
+    }
+
+    private function visibility(int $flags): string
+    {
+        return match (true) {
+            ($flags & Modifiers::PRIVATE) !== 0 => 'private',
+            ($flags & Modifiers::PROTECTED) !== 0 => 'protected',
+            default => 'public',
+        };
+    }
+
     /** @return array<string, mixed> */
     private function method(Stmt\ClassMethod $method, string $kind): array
     {
         $doc = DocComment::parse($method->getDocComment()?->getText());
-        $visibility = $method->isProtected() ? 'protected' : 'public';
+        $visibility = $this->visibility($method->flags);
         $params = [];
 
         foreach ($method->params as $param) {
@@ -213,22 +263,6 @@ final class SymbolCollector extends NodeVisitorAbstract
         }
 
         return [];
-    }
-
-    /** @return list<string> */
-    private function traits(Stmt\ClassLike $node): array
-    {
-        $traits = [];
-
-        foreach ($node->stmts as $stmt) {
-            if ($stmt instanceof Stmt\TraitUse) {
-                foreach ($stmt->traits as $trait) {
-                    $traits[] = $trait->toString();
-                }
-            }
-        }
-
-        return $traits;
     }
 
     /**

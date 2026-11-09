@@ -1,0 +1,1 @@
+<?php class Fixture_D_Txt {} // not a classmap extension: never read

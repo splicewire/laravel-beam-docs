@@ -12,9 +12,10 @@ use PhpParser\ParserFactory;
  * nothing here runs on a request, and package code is parsed, never loaded or executed.
  *
  * Steps: resolve the packages ({@see PhpApiPackages}); list each one's autoload source ({@see SourceRoots}); parse
- * every file statically ({@see SymbolCollector}); keep what the audience publishes; cross-link inherited members,
- * implementers and `@see` targets within the published set (a parent outside it is plain text with no inherited list,
- * including a package's own unpublished symbol, so nothing hidden leaks through inheritance); write the manifest, the
+ * every file statically ({@see SymbolCollector}); keep what the audience publishes; cross-link the effective inherited
+ * members ({@see EffectiveMembers}: trait adaptations and nesting, parents; any own declaration shadows, and only
+ * members reached through published symbols are listed, so nothing hidden leaks through inheritance; a parent outside
+ * the set is plain text), implementers, and `@see` targets checked against published effective members; write the
  * per-package indexes, one file per symbol and the report ({@see ArtifactWriter}). Output is sorted and carries no
  * timestamp or absolute path, so a regeneration over the same input compares byte for byte.
  */
@@ -115,26 +116,32 @@ final class PhpApiGenerator
         ksort($published, SORT_STRING);
         $symbols = [];
 
+        $effective = new EffectiveMembers($collected, $published);
+
         foreach ($published as $fqn => $symbol) {
-            $symbols[$fqn] = $this->render($symbol, $published, $policy, $reports[$symbol['package']]);
+            $symbols[$fqn] = $this->render($symbol, $published, $policy, $reports[$symbol['package']], $audience);
             $reports[$symbol['package']]['published']++;
         }
 
-        $this->crossLink($symbols, $published);
+        $this->crossLink($symbols, $published, $effective);
 
         return (new ArtifactWriter)->shape($packages, $reports, $symbols, $audience, $configured, $patterns);
     }
 
     /**
+     * One published symbol's artifact shape. Private and `@internal` members are never written (they still shadow, in
+     * {@see EffectiveMembers}). Prose and tag descriptions take the audience policy; only the `internal` audience
+     * carries the whole comment text.
+     *
      * @param  array<string, mixed>  $symbol
      * @param  array<string, array<string, mixed>>  $published
      * @param  array<string, mixed>  $report
      * @return array<string, mixed>
      */
-    private function render(array $symbol, array $published, ProsePolicy $policy, array &$report): array
+    private function render(array $symbol, array $published, ProsePolicy $policy, array &$report, string $audience): array
     {
-        $prose = function (DocComment $doc, string $where, int $line) use ($policy, &$report, $symbol): array {
-            $applied = $policy->apply($doc->paragraphs);
+        $prose = function (array $paragraphs, string $where, int $line) use ($policy, &$report, $symbol): array {
+            $applied = $policy->apply($paragraphs);
             $report['citationsStripped'] += $applied['stripped'];
 
             foreach ($applied['withheld'] as $index) {
@@ -144,10 +151,39 @@ final class PhpApiGenerator
             return $applied['kept'];
         };
 
-        $members = function (array $rows, string $kind) use ($prose, &$report): array {
+        // A tag description is one paragraph under the same policy; a withheld one is dropped and reported by position.
+        $tags = function (array $tags, string $where, int $line) use ($prose): array {
+            $out = [];
+
+            foreach ($tags as $tag) {
+                if (isset($tag['description'])) {
+                    $kept = $prose([$tag['description']], trim($where.' '.$tag['tag'].(isset($tag['name']) ? ' '.$tag['name'] : '')), $line);
+                    unset($tag['description']);
+
+                    if ($kept !== []) {
+                        $tag['description'] = $kept[0];
+                    }
+                }
+
+                $out[] = $tag;
+            }
+
+            return $out;
+        };
+
+        $document = function (DocComment $doc, string $where, int $line) use ($prose, $tags, $audience): array {
+            return ['doc' => $prose($doc->paragraphs, $where, $line), 'tags' => $tags($doc->tags, $where, $line)]
+                + ($audience === 'internal' ? ['comment' => $doc->text] : []);
+        };
+
+        $members = function (array $rows, string $kind) use ($document, &$report): array {
             $kept = [];
 
             foreach ($rows as $row) {
+                if ($row['visibility'] === 'private') {
+                    continue;
+                }
+
                 if ($row['doc']->internal) {
                     $report['hidden']['internalMembers']++;
 
@@ -155,9 +191,9 @@ final class PhpApiGenerator
                 }
 
                 $label = $kind === 'method' ? $row['name'].'()' : ($kind === 'property' ? '$'.$row['name'] : $row['name']);
-                $row['doc'] = $prose($row['doc'], $label, $row['line']);
-                unset($row['sees']);
-                $kept[] = $row;
+                $doc = $row['doc'];
+                unset($row['doc'], $row['sees']);
+                $kept[] = $row + $document($doc, $label, $row['line']);
             }
 
             usort($kept, fn (array $a, array $b): int => strcmp($a['name'], $b['name']));
@@ -166,7 +202,16 @@ final class PhpApiGenerator
         };
 
         $link = fn (string $fqn): array => ['fqn' => $fqn, 'published' => isset($published[$fqn])];
-        $sees = array_merge($symbol['sees'], ...array_map(fn (array $m): array => $m['sees'], $symbol['methods']));
+
+        // `@see` only from what is published: the symbol and its non-private, non-internal methods.
+        $sees = $symbol['sees'];
+
+        foreach ($symbol['methods'] as $method) {
+            if ($method['visibility'] !== 'private' && ! $method['doc']->internal) {
+                array_push($sees, ...$method['sees']);
+            }
+        }
+
         $sees = array_values(array_unique($sees));
         sort($sees, SORT_STRING);
 
@@ -182,88 +227,40 @@ final class PhpApiGenerator
             'traits' => array_map($link, $symbol['traits']),
             'backingType' => $symbol['backingType'],
             'attributes' => $symbol['attributes'],
-            'doc' => $prose($symbol['doc'], '', $symbol['line']),
+        ] + $document($symbol['doc'], '', $symbol['line']) + [
             'file' => $symbol['file'],
             'line' => $symbol['line'],
             'constants' => $members($symbol['constants'], 'constant'),
             'cases' => $members($symbol['cases'], 'case'),
             'properties' => $members($symbol['properties'], 'property'),
             'methods' => $members($symbol['methods'], 'method'),
-            'see' => array_map(fn (string $s): array => ['target' => $s, 'published' => isset($published[explode('::', $s, 2)[0]])], $sees),
+            'see' => $sees,
             'inherited' => [],
             'implementers' => [],
         ];
     }
 
     /**
-     * Second pass: inherited members (through published parents and traits; the first parent outside the published
-     * set ends the walk, and that parent is plain text) and implementers (published classes and enums whose own or
-     * published ancestors' interfaces name the interface).
+     * Second pass: inherited members ({@see EffectiveMembers}: traits with their adaptations, nested composition,
+     * parents; listed only through published symbols, shadowed by any own declaration), `@see` targets (a class link is
+     * published when the class is; a member link only when that member is a published effective member of a published
+     * class) and implementers (published classes and enums whose own or published ancestors' interfaces name it).
      *
      * @param  array<string, array<string, mixed>>  $symbols
      * @param  array<string, array<string, mixed>>  $published
      */
-    private function crossLink(array &$symbols, array $published): void
+    private function crossLink(array &$symbols, array $published, EffectiveMembers $effective): void
     {
         foreach ($symbols as $fqn => &$symbol) {
-            $own = [];
+            $symbol['inherited'] = $effective->inherited($fqn);
+            $symbol['see'] = array_map(function (string $target) use ($published, $effective): array {
+                [$class, $member] = array_pad(explode('::', $target, 2), 2, null);
 
-            foreach (['methods', 'properties', 'constants'] as $kind) {
-                foreach ($symbol[$kind] as $member) {
-                    $own[$kind][$member['name']] = true;
-                }
-            }
-
-            $inherited = [];
-            $sources = [...array_map(fn (array $l): string => $l['fqn'], $symbol['traits'])];
-            $parent = $symbol['kind'] === 'class' ? ($symbol['extends'][0]['fqn'] ?? null) : null;
-            $seen = [$fqn => true];
-
-            while ($parent !== null && isset($symbols[$parent]) && ! isset($seen[$parent])) {
-                $seen[$parent] = true;
-                $sources[] = $parent;
-                array_push($sources, ...array_map(fn (array $l): string => $l['fqn'], $symbols[$parent]['traits']));
-                $parent = $symbols[$parent]['extends'][0]['fqn'] ?? null;
-            }
-
-            if ($symbol['kind'] === 'interface') {
-                $queue = array_map(fn (array $l): string => $l['fqn'], $symbol['extends']);
-
-                while ($queue !== []) {
-                    $next = array_shift($queue);
-
-                    if (isset($symbols[$next]) && ! isset($seen[$next])) {
-                        $seen[$next] = true;
-                        $sources[] = $next;
-                        array_push($queue, ...array_map(fn (array $l): string => $l['fqn'], $symbols[$next]['extends']));
-                    }
-                }
-            }
-
-            foreach ($sources as $from) {
-                if (! isset($symbols[$from])) {
-                    continue;
-                }
-
-                foreach (['methods' => 'method', 'properties' => 'property', 'constants' => 'constant'] as $kind => $label) {
-                    foreach ($symbols[$from][$kind] as $member) {
-                        if (isset($own[$kind][$member['name']])) {
-                            continue;
-                        }
-
-                        $own[$kind][$member['name']] = true;
-                        $inherited[] = ['kind' => $label, 'name' => $member['name'], 'from' => $from];
-                    }
-                }
-            }
-
-            usort($inherited, fn (array $a, array $b): int => [$a['kind'], $a['name']] <=> [$b['kind'], $b['name']]);
-            $symbol['inherited'] = $inherited;
+                return ['target' => $target, 'published' => $member === null ? isset($published[$class]) : $effective->publishesMember($class, $member)];
+            }, $symbol['see']);
         }
         unset($symbol);
 
-        // Implementers: for each published class/enum, every interface it (or a published ancestor) implements,
-        // closed over published interface parents.
         foreach ($symbols as $fqn => $symbol) {
             if (! in_array($symbol['kind'], ['class', 'enum'], true)) {
                 continue;

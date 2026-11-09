@@ -1,0 +1,8 @@
+{
+    "name": "fixture/php-api-d",
+    "autoload": {
+        "psr-4": { "Fixture\\ApiD\\": "src/" },
+        "classmap": ["lib/*/", "inc-dir/"],
+        "exclude-from-classmap": ["lib/skip/"]
+    }
+}

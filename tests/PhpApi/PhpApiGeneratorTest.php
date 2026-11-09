@@ -117,13 +117,13 @@ class PhpApiGeneratorTest extends TestCase
         $a = $this->build('public');
         $box = $this->symbol($a, 'Fixture\ApiA\Box');
 
-        $this->assertSame([['name' => 'T', 'bound' => 'object']], $box['templates']);
+        $this->assertSame([['name' => 'T', 'bound' => 'object', 'default' => null, 'variance' => 'invariant']], $box['templates']);
         $this->assertSame([['fqn' => 'Fixture\ApiA\Contracts\Shape', 'published' => true]], $box['implements']);
         $this->assertSame([['fqn' => 'Fixture\ApiA\Concerns\HasName', 'published' => true]], $box['traits']);
         $this->assertSame([['name' => 'AllowDynamicProperties', 'arguments' => []]], $box['attributes']);
         $map = collect($box['methods'])->firstWhere('name', 'map');
         $this->assertSame('public function map(callable $fn, int &...$extra): static|Illuminate\Support\Collection|null', $map['signature']);
-        $this->assertSame([['name' => 'U', 'bound' => null]], $map['templates']);
+        $this->assertSame([['name' => 'U', 'bound' => null, 'default' => null, 'variance' => 'invariant']], $map['templates']);
         $make = collect($box['methods'])->firstWhere('name', 'make');
         $this->assertSame("public static function make(?object \$value = null, array \$options = ['a' => 1]): self", $make['signature']);
         $value = collect($box['properties'])->firstWhere('name', 'value');
@@ -135,7 +135,10 @@ class PhpApiGeneratorTest extends TestCase
         $kind = $this->symbol($a, 'Fixture\ApiA\Kind');
         $this->assertSame('enum', $kind['kind']);
         $this->assertSame('string', $kind['backingType']);
-        $this->assertSame([['name' => 'Circle', 'value' => "'circle'", 'doc' => ['A round one.'], 'line' => 13], ['name' => 'Square', 'value' => "'square'", 'doc' => [], 'line' => 14]], $kind['cases']);
+        $this->assertSame(
+            [['name' => 'Circle', 'value' => "'circle'", 'line' => 13, 'doc' => ['A round one.']], ['name' => 'Square', 'value' => "'square'", 'line' => 14, 'doc' => []]],
+            array_map(fn (array $c): array => array_intersect_key($c, array_flip(['name', 'value', 'doc', 'line'])), $kind['cases']),
+        );
 
         $this->assertSame('trait', $this->symbol($a, 'Fixture\ApiA\Concerns\HasName')['kind']);
         $this->assertSame(['final', 'readonly'], $this->symbol($a, 'Fixture\ApiA\Point')['modifiers']);
