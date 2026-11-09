@@ -65,6 +65,9 @@ final class EffectiveMembers
             // so the generator renders its full effective declaration from the declaring member.
             if ($entry['adapted']) {
                 $row['member'] = $entry['member'];
+                // 01b amend: where that declaration lives, so withheld prose is reported at its source (generator-only).
+                $row['origin'] = ['package' => $this->collected[$entry['from']]['package'] ?? null, 'file' => $this->collected[$entry['from']]['file'] ?? null,
+                    'declaredIn' => isset($this->published[$entry['from']]) ? $entry['from'] : null];
             }
 
             $rows[] = $row;

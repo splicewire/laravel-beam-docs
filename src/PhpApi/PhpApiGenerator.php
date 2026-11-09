@@ -119,7 +119,7 @@ final class PhpApiGenerator
         $effective = new EffectiveMembers($collected, $published);
 
         foreach ($published as $fqn => $symbol) {
-            $symbols[$fqn] = $this->render($symbol, $published, $policy, $reports[$symbol['package']], $audience, $effective);
+            $symbols[$fqn] = $this->render($symbol, $published, $policy, $reports, $audience, $effective);
             $reports[$symbol['package']]['published']++;
         }
 
@@ -135,29 +135,37 @@ final class PhpApiGenerator
      *
      * @param  array<string, mixed>  $symbol
      * @param  array<string, array<string, mixed>>  $published
-     * @param  array<string, mixed>  $report
+     * @param  array<string, array<string, mixed>>  $reports  every package's report, by name
      * @return array<string, mixed>
      */
-    private function render(array $symbol, array $published, ProsePolicy $policy, array &$report, string $audience, EffectiveMembers $effective): array
+    private function render(array $symbol, array $published, ProsePolicy $policy, array &$reports, string $audience, EffectiveMembers $effective): array
     {
-        $prose = function (array $paragraphs, string $where, int $line) use ($policy, &$report, $symbol): array {
+        $report = &$reports[$symbol['package']];
+
+        // Prose under the audience policy. A withheld paragraph is reported where it must be REWRITTEN: by default this
+        // symbol's file; for an adapted trait declaration (01b amend), its ORIGIN package's report, file and line, with
+        // the consuming symbol and the effective (alias) member as identity. Never the text; never a private original's
+        // name (`declaredIn` names the declaring symbol only when it is published).
+        $prose = function (array $paragraphs, string $where, int $line, ?array $origin = null) use ($policy, &$reports, $symbol): array {
             $applied = $policy->apply($paragraphs);
-            $report['citationsStripped'] += $applied['stripped'];
+            $target = $origin['package'] ?? $symbol['package'];
+            $reports[$target]['citationsStripped'] += $applied['stripped'];
 
             foreach ($applied['withheld'] as $index) {
-                $report['withheld'][] = ['symbol' => $symbol['fqn'], 'member' => $where, 'paragraph' => $index, 'file' => $symbol['file'], 'line' => $line];
+                $reports[$target]['withheld'][] = ['symbol' => $symbol['fqn'], 'member' => $where, 'paragraph' => $index, 'file' => $origin['file'] ?? $symbol['file'], 'line' => $line]
+                    + ($origin !== null ? ['declaredIn' => $origin['declaredIn']] : []);
             }
 
             return $applied['kept'];
         };
 
         // A tag description is one paragraph under the same policy; a withheld one is dropped and reported by position.
-        $tags = function (array $tags, string $where, int $line) use ($prose): array {
+        $tags = function (array $tags, string $where, int $line, ?array $origin = null) use ($prose): array {
             $out = [];
 
             foreach ($tags as $tag) {
                 if (isset($tag['description'])) {
-                    $kept = $prose([$tag['description']], trim($where.' '.$tag['tag'].(isset($tag['name']) ? ' '.$tag['name'] : '')), $line);
+                    $kept = $prose([$tag['description']], trim($where.' '.$tag['tag'].(isset($tag['name']) ? ' '.$tag['name'] : '')), $line, $origin);
                     unset($tag['description']);
 
                     if ($kept !== []) {
@@ -171,8 +179,8 @@ final class PhpApiGenerator
             return $out;
         };
 
-        $document = function (DocComment $doc, string $where, int $line) use ($prose, $tags, $audience): array {
-            return ['doc' => $prose($doc->paragraphs, $where, $line), 'tags' => $tags($doc->tags, $where, $line)]
+        $document = function (DocComment $doc, string $where, int $line, ?array $origin = null) use ($prose, $tags, $audience): array {
+            return ['doc' => $prose($doc->paragraphs, $where, $line, $origin), 'tags' => $tags($doc->tags, $where, $line, $origin)]
                 + ($audience === 'internal' ? ['comment' => $doc->text] : []);
         };
 
@@ -204,27 +212,33 @@ final class PhpApiGenerator
         // 01b: the inherited list, each adapted method (an alias or a visibility change) with its full EFFECTIVE
         // declaration: the effective name and visibility, the declaring member's parameters, return type, attributes
         // and audience-filtered docs. The private original itself is never written; an @internal one is never listed.
-        $inherited = array_map(function (array $row) use ($document): array {
+        // 01b amend: the resolved `@see` targets of each VISIBLE adapted declaration (resolved in its declaring file) join
+        // this symbol's links; hidden originals and @internal aliases are never listed, so they contribute nothing.
+        $adaptedSees = [];
+        $inherited = array_map(function (array $row) use ($document, &$adaptedSees): array {
             $member = $row['member'] ?? null;
-            unset($row['member']);
+            $origin = $row['origin'] ?? null;
+            unset($row['member'], $row['origin']);
 
             if ($member === null) {
                 return $row;
             }
 
+            array_push($adaptedSees, ...$member['sees']);
             $doc = $member['doc'];
             unset($member['doc'], $member['sees']);
             $member['name'] = $row['name'];
             $member['visibility'] = $row['visibility'];
             $member['signature'] = SymbolCollector::signature($row['name'], $row['visibility'], $member['abstract'], $member['final'], $member['static'], $member['byRef'], $member['params'], $member['returnType']);
 
-            return $row + ['declaration' => $member + $document($doc, $row['name'].'()', $member['line'])];
+            return $row + ['declaration' => $member + $document($doc, $row['name'].'()', $member['line'], $origin)];
         }, $effective->inherited($symbol['fqn']));
 
         $link = fn (string $fqn): array => ['fqn' => $fqn, 'published' => isset($published[$fqn])];
 
-        // `@see` only from what is published: the symbol and its non-private, non-internal methods.
-        $sees = $symbol['sees'];
+        // `@see` only from what is published: the symbol, its non-private non-internal methods, and its visible adapted
+        // declarations.
+        $sees = [...$symbol['sees'], ...$adaptedSees];
 
         foreach ($symbol['methods'] as $method) {
             if ($method['visibility'] !== 'private' && ! $method['doc']->internal) {
