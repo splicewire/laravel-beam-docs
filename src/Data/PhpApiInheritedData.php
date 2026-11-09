@@ -8,8 +8,13 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
 
 /**
- * An inherited member (from a published parent or trait), by effective name and visibility. An adapted trait method (an
- * alias or a visibility change) also carries its full effective `declaration`; a private original is never named.
+ * An inherited member (from a published parent or trait), by effective name and visibility, as 01b writes it:
+ *
+ * - `abstract` (methods only, `true` or `false`): whether the effective member is still an abstract requirement;
+ * - `original` (an alias only): the original method's name, written ONLY when that original is not private;
+ * - `declaration` (an adapted trait method: an alias or a visibility change): its full effective declaration.
+ *
+ * Absent parts are absent on the wire, as in the artifact; a private original is never named.
  */
 #[Title('PHP API inherited member')]
 #[TypeScript]
@@ -20,6 +25,8 @@ class PhpApiInheritedData extends BeamData
         public string $name,
         public string $from,
         public ?string $visibility,
+        public Optional|bool $abstract = new Optional,
+        public Optional|string $original = new Optional,
         public Optional|PhpApiMemberData $declaration = new Optional,
     ) {}
 }

@@ -2,8 +2,12 @@
 
 namespace Splicewire\Beam\Docs\PhpApi;
 
+use Illuminate\Validation\ValidationException;
 use JsonException;
+use Spatie\LaravelData\Exceptions\CannotCreateData;
 use Splicewire\Beam\Docs\Console\GeneratePhpApiCommand;
+use Splicewire\Beam\Docs\Data\PhpApiIndexData;
+use Splicewire\Beam\Docs\Data\PhpApiSymbolData;
 
 /**
  * The generated PHP API artifact as a request reads it (php-api-reference slice 2). Cheap by construction: it reads the
@@ -15,10 +19,20 @@ use Splicewire\Beam\Docs\Console\GeneratePhpApiCommand;
  * - `beam.docs.php_api.packages` is non-empty (empty is the explicit off state, whatever is on disk);
  * - the artifact root is a real directory (not a symlink) carrying {@see ArtifactWriter::MARKER};
  * - the manifest decodes, is this schema, was generated for the CONFIGURED audience and from the configured package list
- *   and reference patterns (`inputDigest`), and names each index at exactly the path the writer gives that package;
+ *   and reference patterns (`inputDigest`), and every package row is well formed: a string `name` and `status`, a
+ *   string-or-null `version`, an integer `published`, and an `index` that is exactly the writer's path for an `ok` row
+ *   and null otherwise;
  * - at least one symbol is published.
  *
- * Anything else is off, never an error: a mismatched artifact must not serve the wrong audience's content.
+ * Anything else is off, never an error: a mismatched or malformed artifact must not serve the wrong content, or a 500.
+ *
+ * Fail-closed reads (slice 2 amend, review 47b37664). Only what a request needs is judged: the manifest always; the
+ * package indexes for the index op and for a symbol lookup; and the ONE selected symbol. Each index row must be well
+ * formed (string `fqn`, `kind`, `path`, and a string-or-null `summary`). The response Data is hydrated HERE, through
+ * laravel-data's own validation ({@see PhpApiIndexData::validateAndCreate()}), so a structurally incomplete index or
+ * symbol (missing or mistyped required fields, at any nesting depth) is null at this boundary, which the ops answer as
+ * the uniform 404. Only the expected invalid-data failures (validation, Data creation) are caught; anything else is a
+ * programmer error and still raises.
  *
  * Paths are never formed from input. A symbol is found by FQN in the package indexes, and the index row's path must be
  * exactly {@see ArtifactWriter::symbolPath()} of that row's FQN. Every file opened must resolve (symlinks followed) to a
@@ -56,8 +70,7 @@ final class PhpApiArtifact
         }
 
         foreach ($manifest['packages'] as $package) {
-            if (! is_array($package) || ! is_string($package['name'] ?? null)
-                || (($package['index'] ?? null) !== null && $package['index'] !== ArtifactWriter::indexPath($package['name']))) {
+            if (! $this->wellFormedPackage($package)) {
                 return null;
             }
         }
@@ -70,13 +83,8 @@ final class PhpApiArtifact
         return $this->manifest() !== null;
     }
 
-    /**
-     * Every generated package with its published symbol rows, in manifest order; null when off or when an index the
-     * manifest names cannot be read safely.
-     *
-     * @return ?array{audience: string, packages: list<array{name: string, version: ?string, published: int, symbols: list<array{fqn: string, kind: string, summary: ?string}>}>}
-     */
-    public function index(): ?array
+    /** Every generated package with its published symbol rows, typed; null when off or any needed index is malformed. */
+    public function index(): ?PhpApiIndexData
     {
         $indexes = $this->indexes();
         if ($indexes === null) {
@@ -87,21 +95,17 @@ final class PhpApiArtifact
         foreach ($indexes['packages'] as $package) {
             $packages[] = [
                 'name' => $package['name'],
-                'version' => is_string($package['version'] ?? null) ? $package['version'] : null,
+                'version' => $package['version'],
                 'published' => count($package['rows']),
-                'symbols' => array_map(fn (array $row): array => [
-                    'fqn' => $row['fqn'],
-                    'kind' => $row['kind'],
-                    'summary' => is_string($row['summary'] ?? null) ? $row['summary'] : null,
-                ], $package['rows']),
+                'symbols' => array_map(fn (array $row): array => ['fqn' => $row['fqn'], 'kind' => $row['kind'], 'summary' => $row['summary']], $package['rows']),
             ];
         }
 
-        return ['audience' => $indexes['audience'], 'packages' => $packages];
+        return $this->hydrate(PhpApiIndexData::class, ['audience' => $indexes['audience'], 'packages' => $packages]);
     }
 
-    /** One published symbol's document, found by FQN in the indexes; null when off, unknown or unsafe. */
-    public function symbol(string $fqn): ?array
+    /** One published symbol's document, found by FQN in the indexes, typed; null when off, unknown, unsafe or malformed. */
+    public function symbol(string $fqn): ?PhpApiSymbolData
     {
         $indexes = $this->indexes();
         if ($indexes === null) {
@@ -118,17 +122,56 @@ final class PhpApiArtifact
                     return null;
                 }
                 $symbol = $this->read($indexes['root'], $row['path']);
+                if ($symbol === null || ($symbol['schema'] ?? null) !== PhpApiGenerator::SCHEMA
+                    || ($symbol['fqn'] ?? null) !== $fqn || ($symbol['package'] ?? null) !== $package['name']) {
+                    return null;
+                }
+                unset($symbol['schema']);
 
-                return $symbol !== null && ($symbol['schema'] ?? null) === PhpApiGenerator::SCHEMA
-                    && ($symbol['fqn'] ?? null) === $fqn && ($symbol['package'] ?? null) === $package['name']
-                    ? $symbol : null;
+                return $this->hydrate(PhpApiSymbolData::class, $symbol);
             }
         }
 
         return null;
     }
 
-    /** @return ?array{root: string, audience: string, packages: list<array{name: string, version: mixed, rows: list<array<string, mixed>>}>} */
+    /**
+     * The typed Data, or null when the payload does not satisfy it (the expected failure of a malformed artifact).
+     *
+     * @template T of \Spatie\LaravelData\Data
+     *
+     * @param  class-string<T>  $class
+     * @return ?T
+     */
+    private function hydrate(string $class, array $payload): ?object
+    {
+        try {
+            return $class::validateAndCreate($payload);
+        } catch (ValidationException|CannotCreateData) {
+            return null;
+        }
+    }
+
+    private function wellFormedPackage(mixed $package): bool
+    {
+        if (! is_array($package) || ! is_string($package['name'] ?? null) || ! is_string($package['status'] ?? null)
+            || ! array_key_exists('index', $package) || ! is_int($package['published'] ?? null)
+            || ! (($package['version'] ?? null) === null || is_string($package['version']))) {
+            return false;
+        }
+
+        return $package['status'] === 'ok'
+            ? $package['index'] === ArtifactWriter::indexPath($package['name'])
+            : $package['index'] === null;
+    }
+
+    private function wellFormedRow(mixed $row): bool
+    {
+        return is_array($row) && is_string($row['fqn'] ?? null) && is_string($row['kind'] ?? null) && is_string($row['path'] ?? null)
+            && array_key_exists('summary', $row) && ($row['summary'] === null || is_string($row['summary']));
+    }
+
+    /** @return ?array{root: string, audience: string, packages: list<array{name: string, version: ?string, rows: list<array<string, mixed>>}>} */
     private function indexes(): ?array
     {
         $manifest = $this->manifest();
@@ -139,22 +182,21 @@ final class PhpApiArtifact
 
         $packages = [];
         foreach ($manifest['packages'] as $package) {
-            if (($package['status'] ?? null) !== 'ok' || $package['index'] === null) {
+            if ($package['status'] !== 'ok') {
                 continue;
             }
             $index = $this->read($root, $package['index']);
             if ($index === null || ($index['schema'] ?? null) !== PhpApiGenerator::SCHEMA
-                || ($index['package'] ?? null) !== $package['name'] || ! is_array($index['symbols'] ?? null)) {
+                || ($index['package'] ?? null) !== $package['name']
+                || ! is_array($index['symbols'] ?? null) || ! array_is_list($index['symbols'])) {
                 return null;
             }
-            $rows = [];
             foreach ($index['symbols'] as $row) {
-                if (! is_array($row) || ! is_string($row['fqn'] ?? null) || ! is_string($row['kind'] ?? null) || ! is_string($row['path'] ?? null)) {
+                if (! $this->wellFormedRow($row)) {
                     return null;
                 }
-                $rows[] = $row;
             }
-            $packages[] = ['name' => $package['name'], 'version' => $package['version'] ?? null, 'rows' => $rows];
+            $packages[] = ['name' => $package['name'], 'version' => $package['version'] ?? null, 'rows' => $index['symbols']];
         }
 
         return ['root' => $root, 'audience' => $manifest['audience'], 'packages' => $packages];

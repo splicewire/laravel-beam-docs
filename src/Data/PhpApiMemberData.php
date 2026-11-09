@@ -45,4 +45,10 @@ class PhpApiMemberData extends BeamData
         public Optional|string $signature = new Optional,
         public Optional|string $comment = new Optional,
     ) {}
+
+    /** @return array<string, list<string>> `doc` may be empty: present and a list of strings ({@see PhpApiSymbolData::rules()}). */
+    public static function rules(): array
+    {
+        return ['doc' => ['present', 'array', 'list'], 'doc.*' => ['string']];
+    }
 }

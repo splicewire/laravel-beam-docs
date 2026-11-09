@@ -41,6 +41,6 @@ class PhpApiSymbolOp
         $symbol = is_string($fqn) && $fqn !== '' ? app(PhpApiArtifact::class)->symbol($fqn) : null;
         abort_if($symbol === null, 404);
 
-        return PhpApiSymbolData::from($symbol);
+        return $symbol;
     }
 }

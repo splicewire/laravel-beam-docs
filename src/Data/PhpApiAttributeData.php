@@ -16,4 +16,10 @@ class PhpApiAttributeData extends BeamData
         /** @var list<string> */
         public array $arguments,
     ) {}
+
+    /** @return array<string, list<string>> `arguments` may be empty: present and a list of strings. */
+    public static function rules(): array
+    {
+        return ['arguments' => ['present', 'array', 'list'], 'arguments.*' => ['string']];
+    }
 }

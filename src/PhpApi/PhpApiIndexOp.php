@@ -42,6 +42,6 @@ class PhpApiIndexOp
         $index = app(PhpApiArtifact::class)->index();
         abort_if($index === null, 404);
 
-        return PhpApiIndexData::from($index);
+        return $index;
     }
 }

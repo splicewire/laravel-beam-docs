@@ -6,6 +6,7 @@ use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\LaravelData\Optional;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
+use Splicewire\Beam\Docs\PhpApi\PhpApiArtifact;
 
 /**
  * The declared `output:` of `beam-docs.php-api-symbol` (php-api-reference slice 2): one published symbol's generated
@@ -55,4 +56,19 @@ class PhpApiSymbolData extends BeamData
         public array $implementers,
         public Optional|string $comment = new Optional,
     ) {}
+
+    /**
+     * The plain string lists the generator writes may be EMPTY: present and a list of strings, not `required` (which
+     * Laravel fails on `[]`). Read by {@see PhpApiArtifact} through `validateAndCreate()`.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function rules(): array
+    {
+        return [
+            'modifiers' => ['present', 'array', 'list'], 'modifiers.*' => ['string'],
+            'doc' => ['present', 'array', 'list'], 'doc.*' => ['string'],
+            'implementers' => ['present', 'array', 'list'], 'implementers.*' => ['string'],
+        ];
+    }
 }
