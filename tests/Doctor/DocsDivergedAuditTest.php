@@ -30,7 +30,6 @@ class DocsDivergedAuditTest extends TestCase
 
         $ux = dirname((new \ReflectionClass(BeamUxEntry::class))->getFileName(), 3);
         (require $ux.'/database/migrations/shared/create_beam_ux_entries_table.php.stub')->up();
-        (require $ux.'/database/migrations/shared/add_provenance_to_beam_ux_entries_table.php.stub')->up();
 
         $this->driver = new DivergedMemoryDriver;
         $this->app->instance(StorageDriverResolver::class, (new StorageDriverResolver)->register(StorageDriverResolver::DEFAULT, $this->driver));

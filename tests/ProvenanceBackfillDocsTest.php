@@ -2,6 +2,8 @@
 
 namespace Splicewire\Beam\Docs\Tests;
 
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
@@ -32,6 +34,10 @@ class ProvenanceBackfillDocsTest extends TestCase
         (require dirname((new \ReflectionClass(\Splicewire\Beam\Models\BeamParticle::class))->getFileName(), 3).'/database/migrations/shared/create_beam_particles_table.php.stub')->up();
         $ux = dirname((new \ReflectionClass(BeamUxEntry::class))->getFileName(), 3);
         (require $ux.'/database/migrations/shared/create_beam_ux_entries_table.php.stub')->up();
+        // A host from before the provenance columns (migration-flatten 07): beam-ux folded them into its create, so take
+        // them back off; migrate() adds them as the retired ALTER did, and the legacy rows are born without an origin.
+        Schema::table('beam_ux_entries', fn (Blueprint $table) => $table->dropIndex('beam_ux_entries_origin_index'));
+        Schema::table('beam_ux_entries', fn (Blueprint $table) => $table->dropColumn(['origin', 'asserted_hash']));
         config(['beam.brand.name' => 'Acme', 'beam.ux.compile.disk' => 'docs-artifacts', 'beam.docs.sources' => []]);
         Storage::fake('docs-artifacts');
 
@@ -94,8 +100,9 @@ class ProvenanceBackfillDocsTest extends TestCase
 
     private function migrate(): void
     {
-        $ux = dirname((new \ReflectionClass(BeamUxEntry::class))->getFileName(), 3);
-        (require $ux.'/database/migrations/shared/add_provenance_to_beam_ux_entries_table.php.stub')->up();
+        // The retired add_provenance_to_beam_ux_entries_table ALTER's definition (beam-ux folded it into its create).
+        Schema::table('beam_ux_entries', fn (Blueprint $table) => $table->string('origin')->nullable()->index());
+        Schema::table('beam_ux_entries', fn (Blueprint $table) => $table->string('asserted_hash')->nullable());
     }
 
     private function body(BeamUxEntry $entry): string
