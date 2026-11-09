@@ -6,7 +6,11 @@ use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
 
-/** A method parameter as declared; `type` and `default` are printed source, null when there is none. */
+/**
+ * A method parameter as declared; `type` and `default` are printed source, null when there is none.
+ *
+ * @api
+ */
 #[Title('PHP API parameter')]
 #[TypeScript]
 class PhpApiParamData extends BeamData

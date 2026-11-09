@@ -15,6 +15,8 @@ use Splicewire\Beam\Data\BeamData;
  * - `declaration` (an adapted trait method: an alias or a visibility change): its full effective declaration.
  *
  * Absent parts are absent on the wire, as in the artifact; a private original is never named.
+ *
+ * @api
  */
 #[Title('PHP API inherited member')]
 #[TypeScript]

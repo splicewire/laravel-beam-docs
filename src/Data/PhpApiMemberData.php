@@ -13,6 +13,8 @@ use Splicewire\Beam\Data\BeamData;
  * `final`/`type`/`value`; a case `value`; a property `static`/`readonly`/`type`/`default`/`promoted`; a method
  * `static`/`abstract`/`final`/`byRef`/`params`/`returnType`/`templates`/`signature`). `comment` is the whole docblock,
  * written only for the `internal` audience.
+ *
+ * @api
  */
 #[Title('PHP API member')]
 #[TypeScript]

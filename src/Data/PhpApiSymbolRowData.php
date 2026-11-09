@@ -6,7 +6,11 @@ use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
 
-/** A published symbol in a package's index: `kind` is class, interface, trait or enum; `summary` its first kept paragraph. */
+/**
+ * A published symbol in a package's index: `kind` is class, interface, trait or enum; `summary` its first kept paragraph.
+ *
+ * @api
+ */
 #[Title('PHP API symbol row')]
 #[TypeScript]
 class PhpApiSymbolRowData extends BeamData

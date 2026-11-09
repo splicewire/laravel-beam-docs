@@ -6,7 +6,11 @@ use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
 
-/** A `@template` parameter: `variance` is invariant, covariant or contravariant. */
+/**
+ * A `@template` parameter: `variance` is invariant, covariant or contravariant.
+ *
+ * @api
+ */
 #[Title('PHP API template')]
 #[TypeScript]
 class PhpApiTemplateData extends BeamData

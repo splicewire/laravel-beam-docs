@@ -10,6 +10,8 @@ use Splicewire\Beam\Data\BeamData;
 /**
  * A structured docblock tag (`@param`, `@return`, `@var`, `@throws`, `@extends`, `@implements`, `@uses`,
  * `@deprecated`). Absent parts are absent on the wire, as in the artifact; a withheld description is absent too.
+ *
+ * @api
  */
 #[Title('PHP API tag')]
 #[TypeScript]

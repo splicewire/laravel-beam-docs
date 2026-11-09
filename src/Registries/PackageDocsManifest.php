@@ -16,5 +16,7 @@ use Rushing\Popcorn\Registries\Docs\RegistryDocsManifest;
  *
  * Ticket 04 also made an exemption's `class` (infrastructure | rebind-only | app-local) a mandatory
  * field, and the pointer mandatory for the first two. See the popcorn class for the full shape.
+ *
+ * @internal
  */
 class PackageDocsManifest extends RegistryDocsManifest {}

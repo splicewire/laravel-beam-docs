@@ -11,6 +11,9 @@ use Splicewire\Beam\Ux\Models\BeamUxEntry;
 use Splicewire\Beam\Ux\Seed\SeedsEntries;
 use Splicewire\Beam\Ux\Seed\StubContent;
 
+/**
+ * @api
+ */
 class DocsSeeder extends Seeder
 {
     use SeedsEntries;

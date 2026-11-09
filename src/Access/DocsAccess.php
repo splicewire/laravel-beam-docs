@@ -7,6 +7,9 @@ use Splicewire\Beam\Ux\Access\EntryAccessGate;
 use Splicewire\Beam\Ux\Access\Right;
 use Splicewire\Beam\Ux\Models\BeamUxEntry;
 
+/**
+ * @api
+ */
 class DocsAccess
 {
     public function __construct(private EntryAccessGate $gate) {}

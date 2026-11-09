@@ -10,6 +10,8 @@ use Splicewire\Beam\Data\BeamData;
  * The declared `output:` of `beam-docs.php-api-index` (php-api-reference slice 2): the generated artifact's packages and
  * their published symbols, as the artifact's own manifest and indexes hold them. `audience` is the one it was generated
  * for (`public` or `internal`). Rows carry no artifact path: a symbol is read by FQN.
+ *
+ * @api
  */
 #[Title('PHP API index')]
 #[TypeScript]

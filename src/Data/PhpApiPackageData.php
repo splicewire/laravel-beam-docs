@@ -6,7 +6,11 @@ use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
 
-/** One generated package in the PHP API index: its resolved version (null for a path package) and published symbols. */
+/**
+ * One generated package in the PHP API index: its resolved version (null for a path package) and published symbols.
+ *
+ * @api
+ */
 #[Title('PHP API package')]
 #[TypeScript]
 class PhpApiPackageData extends BeamData

@@ -12,6 +12,8 @@ use Splicewire\Beam\Docs\PhpApi\PhpApiArtifact;
  * The declared `output:` of `beam-docs.php-api-symbol` (php-api-reference slice 2): one published symbol's generated
  * document, read from the path its package index holds. Prose is already filtered for the artifact's audience;
  * `comment` (the whole docblock) is present only for `internal`. `file` is relative to the package root.
+ *
+ * @api
  */
 #[Title('PHP API symbol')]
 #[TypeScript]

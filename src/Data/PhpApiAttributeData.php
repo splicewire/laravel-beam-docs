@@ -6,7 +6,11 @@ use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
 
-/** A PHP attribute as written: its resolved name and each argument printed (`name: value` when named). */
+/**
+ * A PHP attribute as written: its resolved name and each argument printed (`name: value` when named).
+ *
+ * @api
+ */
 #[Title('PHP API attribute')]
 #[TypeScript]
 class PhpApiAttributeData extends BeamData
