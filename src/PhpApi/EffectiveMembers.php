@@ -13,6 +13,11 @@ namespace Splicewire\Beam\Docs\PhpApi;
  *   (the named trait's method is excluded) and aliases (`m as alias`, `m as private`, `m as public alias`) with the
  *   resulting visibility; a trait's private methods take part, since an alias can make them public.
  * - A parent (or an interface's parents) contributes its non-private effective members.
+ * - 01b (owner/root disposition 2026-11-09): an ABSTRACT trait method is a requirement, not an implementation: a
+ *   concrete method from another trait or from the parent satisfies and replaces it (PHP precedence; {@see place()}),
+ *   so the effective owner is the real implementation even when the trait is unpublished. An adapted method (an alias
+ *   or a visibility change) keeps its declaring member, so its full effective declaration can be rendered; a private
+ *   original's name is never listed.
  * - Every entry records the symbol that DECLARES it (`from`), an alias its `original` name, and whether it is LISTED:
  *   it reached here only through published symbols. A member that came through an unpublished parent or trait still
  *   shadows, but is never listed, so nothing unpublished leaks through inheritance. A parent outside the collected set
@@ -45,7 +50,24 @@ final class EffectiveMembers
                 continue;
             }
 
-            $rows[] = ['kind' => $entry['kind'], 'name' => $entry['name'], 'from' => $entry['from']] + (isset($entry['original']) ? ['original' => $entry['original']] : []);
+            $row = ['kind' => $entry['kind'], 'name' => $entry['name'], 'from' => $entry['from'], 'visibility' => $entry['visibility']];
+
+            if ($entry['kind'] === 'method') {
+                $row['abstract'] = $entry['abstract'];
+            }
+
+            // 01b: a private original's NAME is withheld like its content; a non-private one is named.
+            if (isset($entry['original']) && $entry['declared'] !== 'private') {
+                $row['original'] = $entry['original'];
+            }
+
+            // 01b: an adapted member (an alias, or a visibility change) is declared nowhere else as it is effective here,
+            // so the generator renders its full effective declaration from the declaring member.
+            if ($entry['adapted']) {
+                $row['member'] = $entry['member'];
+            }
+
+            $rows[] = $row;
         }
 
         usort($rows, fn (array $a, array $b): int => [$a['kind'], $a['name']] <=> [$b['kind'], $b['name']]);
@@ -104,7 +126,9 @@ final class EffectiveMembers
         foreach (['methods' => 'method', 'properties' => 'property', 'constants' => 'constant', 'cases' => 'case'] as $list => $kind) {
             foreach ($symbol[$list] as $member) {
                 $out[self::key($kind, $member['name'])] = ['kind' => $kind, 'name' => $member['name'], 'from' => $fqn,
-                    'visibility' => $member['visibility'], 'internal' => $member['doc']->internal, 'listed' => true];
+                    'visibility' => $member['visibility'], 'internal' => $member['doc']->internal, 'listed' => true,
+                    'abstract' => $kind === 'method' && (bool) $member['abstract'], 'origin' => 'own',
+                    'member' => $member, 'declared' => $member['visibility'], 'adapted' => false];
             }
         }
 
@@ -115,6 +139,7 @@ final class EffectiveMembers
 
             foreach ($this->of($trait) as $entry) {
                 $entry['listed'] = $entry['listed'] && $traitListed;
+                $entry['origin'] = 'trait';
 
                 if ($entry['kind'] !== 'method') {
                     $out[self::key($entry['kind'], $entry['name'])] ??= $entry;
@@ -137,16 +162,17 @@ final class EffectiveMembers
                     }
 
                     if ($rule['alias'] !== null) {
-                        $alias = ['name' => $rule['alias'], 'visibility' => $rule['visibility'] ?? $entry['visibility'], 'original' => $entry['name']] + $entry;
-                        $out[self::key('method', $rule['alias'])] ??= $alias;
+                        $alias = ['name' => $rule['alias'], 'visibility' => $rule['visibility'] ?? $entry['visibility'], 'original' => $entry['name'], 'adapted' => true] + $entry;
+                        self::place($out, self::key('method', $rule['alias']), $alias);
                     } elseif ($rule['visibility'] !== null) {
                         $entry['visibility'] = $rule['visibility'];
+                        $entry['adapted'] = true;
                     }
                 }
 
                 // An excluded method keeps its aliases (`A::m insteadof B; B::m as other;`) but not its own name.
                 if (! $excluded) {
-                    $out[self::key('method', $entry['name'])] ??= $entry;
+                    self::place($out, self::key('method', $entry['name']), $entry);
                 }
             }
         }
@@ -162,13 +188,36 @@ final class EffectiveMembers
                 }
 
                 $entry['listed'] = $entry['listed'] && $parentListed;
-                $out[$key] ??= $entry;
+                $entry['origin'] = 'parent';
+
+                if ($entry['kind'] === 'method') {
+                    self::place($out, $key, $entry);
+                } else {
+                    $out[$key] ??= $entry;
+                }
             }
         }
 
         unset($this->visiting[$fqn]);
 
         return $this->memo[$fqn] = $out;
+    }
+
+    /**
+     * PHP method precedence (01b): an own declaration wins; otherwise the first trait method wins over a parent's; but
+     * an ABSTRACT trait method is only a requirement, so a concrete method (another trait's, or the parent's) satisfies
+     * and replaces it. An abstract own declaration stays (the class redeclares the requirement itself).
+     *
+     * @param  array<string, array<string, mixed>>  $out
+     * @param  array<string, mixed>  $entry
+     */
+    private static function place(array &$out, string $key, array $entry): void
+    {
+        $current = $out[$key] ?? null;
+
+        if ($current === null || ($current['origin'] === 'trait' && $current['abstract'] && ! $entry['abstract'])) {
+            $out[$key] = $entry;
+        }
     }
 
     private static function key(string $kind, string $name): string

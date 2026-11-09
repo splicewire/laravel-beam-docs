@@ -182,6 +182,26 @@ final class SymbolCollector extends NodeVisitorAbstract
         };
     }
 
+    /**
+     * A method's declared signature, from its parts. One builder for a declaration and for an adapted trait method
+     * (01b: an alias or a visibility change is rebuilt with its effective name and visibility, never string-patched).
+     *
+     * @param  list<array<string, mixed>>  $params
+     */
+    public static function signature(string $name, string $visibility, bool $abstract, bool $final, bool $static, bool $byRef, array $params, ?string $return): string
+    {
+        return implode(' ', array_filter([
+            $abstract ? 'abstract' : null,
+            $final ? 'final' : null,
+            $visibility,
+            $static ? 'static' : null,
+            'function',
+        ])).' '.($byRef ? '&' : '').$name.'('.implode(', ', array_map(
+            fn (array $p): string => trim(($p['type'] ?? '').' '.($p['byRef'] ? '&' : '').($p['variadic'] ? '...' : '').'$'.$p['name'].($p['default'] !== null ? ' = '.$p['default'] : '')),
+            $params,
+        )).')'.($return !== null ? ': '.$return : '');
+    }
+
     /** @return array<string, mixed> */
     private function method(Stmt\ClassMethod $method, string $kind): array
     {
@@ -202,16 +222,7 @@ final class SymbolCollector extends NodeVisitorAbstract
         }
 
         $return = $method->returnType !== null ? $this->type($method->returnType) : null;
-        $signature = implode(' ', array_filter([
-            $method->isAbstract() && $kind !== 'interface' ? 'abstract' : null,
-            $method->isFinal() ? 'final' : null,
-            $visibility,
-            $method->isStatic() ? 'static' : null,
-            'function',
-        ])).' '.($method->byRef ? '&' : '').$method->name->toString().'('.implode(', ', array_map(
-            fn (array $p): string => trim(($p['type'] ?? '').' '.($p['byRef'] ? '&' : '').($p['variadic'] ? '...' : '').'$'.$p['name'].($p['default'] !== null ? ' = '.$p['default'] : '')),
-            $params,
-        )).')'.($return !== null ? ': '.$return : '');
+        $signature = self::signature($method->name->toString(), $visibility, $method->isAbstract() && $kind !== 'interface', $method->isFinal(), $method->isStatic(), $method->byRef, $params, $return);
 
         return [
             'name' => $method->name->toString(),

@@ -119,7 +119,7 @@ final class PhpApiGenerator
         $effective = new EffectiveMembers($collected, $published);
 
         foreach ($published as $fqn => $symbol) {
-            $symbols[$fqn] = $this->render($symbol, $published, $policy, $reports[$symbol['package']], $audience);
+            $symbols[$fqn] = $this->render($symbol, $published, $policy, $reports[$symbol['package']], $audience, $effective);
             $reports[$symbol['package']]['published']++;
         }
 
@@ -138,7 +138,7 @@ final class PhpApiGenerator
      * @param  array<string, mixed>  $report
      * @return array<string, mixed>
      */
-    private function render(array $symbol, array $published, ProsePolicy $policy, array &$report, string $audience): array
+    private function render(array $symbol, array $published, ProsePolicy $policy, array &$report, string $audience, EffectiveMembers $effective): array
     {
         $prose = function (array $paragraphs, string $where, int $line) use ($policy, &$report, $symbol): array {
             $applied = $policy->apply($paragraphs);
@@ -201,6 +201,26 @@ final class PhpApiGenerator
             return $kept;
         };
 
+        // 01b: the inherited list, each adapted method (an alias or a visibility change) with its full EFFECTIVE
+        // declaration: the effective name and visibility, the declaring member's parameters, return type, attributes
+        // and audience-filtered docs. The private original itself is never written; an @internal one is never listed.
+        $inherited = array_map(function (array $row) use ($document): array {
+            $member = $row['member'] ?? null;
+            unset($row['member']);
+
+            if ($member === null) {
+                return $row;
+            }
+
+            $doc = $member['doc'];
+            unset($member['doc'], $member['sees']);
+            $member['name'] = $row['name'];
+            $member['visibility'] = $row['visibility'];
+            $member['signature'] = SymbolCollector::signature($row['name'], $row['visibility'], $member['abstract'], $member['final'], $member['static'], $member['byRef'], $member['params'], $member['returnType']);
+
+            return $row + ['declaration' => $member + $document($doc, $row['name'].'()', $member['line'])];
+        }, $effective->inherited($symbol['fqn']));
+
         $link = fn (string $fqn): array => ['fqn' => $fqn, 'published' => isset($published[$fqn])];
 
         // `@see` only from what is published: the symbol and its non-private, non-internal methods.
@@ -235,7 +255,7 @@ final class PhpApiGenerator
             'properties' => $members($symbol['properties'], 'property'),
             'methods' => $members($symbol['methods'], 'method'),
             'see' => $sees,
-            'inherited' => [],
+            'inherited' => $inherited,
             'implementers' => [],
         ];
     }
@@ -252,7 +272,6 @@ final class PhpApiGenerator
     private function crossLink(array &$symbols, array $published, EffectiveMembers $effective): void
     {
         foreach ($symbols as $fqn => &$symbol) {
-            $symbol['inherited'] = $effective->inherited($fqn);
             $symbol['see'] = array_map(function (string $target) use ($published, $effective): array {
                 [$class, $member] = array_pad(explode('::', $target, 2), 2, null);
 
