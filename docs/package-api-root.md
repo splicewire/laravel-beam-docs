@@ -1,0 +1,9 @@
+# Documentation API root
+
+Call `DocsRoutes::mount()` before site catch-alls and outside tenant middleware. It exports OpenAPI artifacts, publications, docs search and PHP reference reads at `beam.docs.api_root` (default `beam/docs`). Each keeps its existing web, docs-read, publishing-host, PHP-read and throttle boundary. Publication policy and transport are unchanged.
+
+The legacy provider exposures remain during expansion. Their shared route bodies register as before; only the new export probes for identical routes or refuses a conflict. The temporary `legacy_root` and `legacy_openapi_root` config entries preserve old addresses and are not a supported host override. Missing legacy OpenAPI config falls back to the package's retained default, including with an older config cache.
+
+At the default root, publications and search already have the canonical URI, so the new export reuses the same Route objects and legacy names. OpenAPI gains `beam/docs/openapi.{yaml,json}` while retaining `beam/openapi.{yaml,json}`. A root override adds twins. New names use `beam.docs.api.*`; operation names include the resource stem (`beam.docs.api.beam-docs.*`). Use the retained names for same-URI reuse, rather than assuming every `.api.*` name exists. The temporary constant returns to `beam.docs.*` when the legacy root is removed.
+
+The guard compares declared middleware without constructing controllers or caching their middleware. Middleware appended by a host after reuse is still applied. DocsSeeder's `beam.openapi.yaml` link, DocsPageController's publication link and generated clients keep their old names until the host/contract migration updates and reseeds them. Browser manage/registry URLs remain web flows. ApiRoot comes from Beam ADR-0243 (c583da31); the landing owner resolves that prerequisite. There is no new provider auto-mount.

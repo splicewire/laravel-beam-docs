@@ -2,7 +2,6 @@
 
 namespace Splicewire\Beam\Docs;
 
-use Illuminate\Support\Facades\Route;
 use Rushing\Popcorn\Registries\ScopesRegistrant;
 use Rushing\Surgeon\Operation\SuggestsOperations;
 use Spatie\LaravelPackageTools\Package;
@@ -10,11 +9,9 @@ use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Splicewire\Beam\Docs\Console\ExportFrontendContractsCommand;
 use Splicewire\Beam\Docs\Console\GenerateOpenApiCommand;
 use Splicewire\Beam\Docs\Console\PublishScalarCommand;
-use Splicewire\Beam\Docs\Http\DocsReadAccess;
 use Splicewire\Beam\Docs\Publishing\Validation\ReleaseVersion;
 use Splicewire\Beam\Doctor\BeamDoctorManifest;
 use Splicewire\Beam\Doctor\ScribeOutputContractAudit;
-use Splicewire\Beam\Http\OpenApiSpecController;
 use Splicewire\Beam\Install\BeamInstallManifest;
 use Splicewire\Beam\OpenApi\ConfiguredArtifactSpecSource;
 use Splicewire\Beam\OpenApi\OpenApiSpecSource;
@@ -108,11 +105,7 @@ class BeamDocsServiceProvider extends PackageServiceProvider
             $manifest->register('splicewire/laravel-beam-docs', SdkNameConventionAudit::class);
         }
 
-        $middleware = config('beam.docs.openapi.middleware') ?? config('beam.core.openapi.middleware', []);
-        Route::middleware(['web', DocsReadAccess::class, ...(array) $middleware])->group(function (): void {
-            Route::get('beam/openapi.yaml', [OpenApiSpecController::class, 'yaml'])->name('beam.openapi.yaml');
-            Route::get('beam/openapi.json', [OpenApiSpecController::class, 'json'])->name('beam.openapi.json');
-        });
+        Routing\DocsRoutes::legacyOpenApi();
 
         $this->loadRoutesFrom(dirname(__DIR__).'/routes/publications.php');
     }

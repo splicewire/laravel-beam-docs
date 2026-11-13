@@ -11,21 +11,16 @@ use Splicewire\Beam\Docs\Access\PhpApiEntryRequirement;
 use Splicewire\Beam\Docs\Chrome\DocsChrome;
 use Splicewire\Beam\Docs\Http\DocsPageController;
 use Splicewire\Beam\Docs\Http\DocsReadAccess;
-use Splicewire\Beam\Docs\Http\PhpApiReadGate;
 use Splicewire\Beam\Docs\Http\RegistryDocsController;
-use Splicewire\Beam\Docs\PhpApi\PhpApiIndexOp;
-use Splicewire\Beam\Docs\PhpApi\PhpApiSymbolOp;
 use Splicewire\Beam\Docs\Publishing\Http\EnsurePublishingHost;
 use Splicewire\Beam\Docs\Registries\BeamDocsLinkResolver;
 use Splicewire\Beam\Docs\Registries\FamilyRegistryDocSources;
 use Splicewire\Beam\Docs\Registries\RegistryDocsNav;
 use Splicewire\Beam\Docs\Registries\RegistryDocsNavProjector;
 use Splicewire\Beam\Docs\Registries\RegistryIndexNavNode;
-use Splicewire\Beam\Docs\Search\DocsSearchOp;
 use Splicewire\Beam\Docs\Seed\DocsProvenanceTemplates;
 use Splicewire\Beam\Docs\Seed\DocsSeeder;
 use Splicewire\Beam\Docs\Theme\DocsThemeNamespaceSource;
-use Splicewire\Beam\Facades\Particle;
 use Splicewire\Beam\Seed\BeamSeedManifest;
 use Splicewire\Beam\Ux\Containment\NavProjector;
 use Splicewire\Beam\Ux\Docs\DocsLinkResolver;
@@ -103,14 +98,7 @@ class DocsUxServiceProvider extends ServiceProvider
         // docs.search (DOCS-14, DM6): a guest reads public docs as a guest, so it mounts beside the docs pages' own gate
         // (DocsReadAccess), never in a tenant API group; the throttle bounds a public endpoint. Every row is gated per
         // principal inside the op.
-        Route::middleware(['web', DocsReadAccess::class, 'throttle:60,1'])->group(function (): void {
-            Particle::ops('beam/docs', 'beam-docs', [DocsSearchOp::class]);
-            // php-api-reference slice 2: the PHP API reads, in the same group. PhpApiReadGate answers 404 unless this
-            // principal can open the seeded PHP API page, before the controller validates any input.
-            Route::middleware([PhpApiReadGate::class])->group(function (): void {
-                Particle::ops('beam/docs', 'beam-docs', [PhpApiIndexOp::class, PhpApiSymbolOp::class]);
-            });
-        });
+        Routing\DocsRoutes::legacySearch();
         $this->publishes([__DIR__.'/../stubs/docs' => resource_path('beam-ux/docs')], 'beam-ux-docs');
         $this->app->make(BeamSeedManifest::class)->register('splicewire/laravel-beam-docs', DocsSeeder::class, order: 25);
         // registry-docs ticket 02: the generic family `docs/registries/` source rows (ruling 2).

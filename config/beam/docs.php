@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'api_root' => env('BEAM_DOCS_API_ROOT', 'beam/docs'),
+    // Retained old exposures until owner-review ticket16.
+    'legacy_root' => 'beam/docs',
+    'legacy_openapi_root' => 'beam',
     'enabled' => env('BEAM_DOCS_ENABLED', true),
     'visibility' => env('BEAM_DOCS_VISIBILITY', 'public'),
     'reader_tokens' => ['auth'],
