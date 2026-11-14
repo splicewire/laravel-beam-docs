@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Rushing\LaravelDataSchemasScribe\Attributes\RequestFromData;
 use Rushing\LaravelDataSchemasScribe\Attributes\ResponseFromData;
+use Splicewire\Beam\Docs\Localization\CodedPublicationFailure;
+use Splicewire\Beam\Docs\Localization\DocsHttpException;
+use Splicewire\Beam\Docs\Localization\DocsPublishingError;
 use Splicewire\Beam\Docs\Publishing\Data\PublicationData;
 use Splicewire\Beam\Docs\Publishing\Data\PublicationListData;
 use Splicewire\Beam\Docs\Publishing\Data\PublicationResponseData;
@@ -37,7 +40,10 @@ class PublicationController
         try {
             $publication = $this->publications->enqueue($this->publications->capture($input->version));
         } catch (PublicationFailure $error) {
-            abort(422, $error->getMessage());
+            if ($error instanceof CodedPublicationFailure && $error->explicitCodedError() instanceof DocsPublishingError) {
+                throw DocsHttpException::for(422, $error->explicitCodedError(), $error->messageParameters(), $error);
+            }
+            abort(422, __('beam-docs::messages.forwarded.store_detail', ['detail' => $error->getMessage()]));
         }
 
         return response()->json(new PublicationResponseData(PublicationData::fromPublication($publication)), 202);
@@ -58,7 +64,10 @@ class PublicationController
         try {
             $attempt = $this->publications->enqueue($this->publications->retry($publication));
         } catch (PublicationFailure $error) {
-            abort(409, $error->getMessage());
+            if ($error instanceof CodedPublicationFailure && $error->explicitCodedError() instanceof DocsPublishingError) {
+                throw DocsHttpException::for(409, $error->explicitCodedError(), $error->messageParameters(), $error);
+            }
+            abort(409, __('beam-docs::messages.forwarded.retry_detail', ['detail' => $error->getMessage()]));
         }
 
         return response()->json(new PublicationResponseData(PublicationData::fromPublication($attempt)), 202);

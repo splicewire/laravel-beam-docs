@@ -2,13 +2,16 @@
 
 namespace Splicewire\Beam\Docs\Publishing;
 
+use Splicewire\Beam\Docs\Localization\CodedPublicationFailure;
+use Splicewire\Beam\Docs\Localization\DocsPublishingError;
+
 class PublicationPolicy
 {
     public function assertHostContext(): void
     {
         // A host publishes its build artifact, never a tenant-selected artifact or tenant row.
         if (app()->bound('tenancy') && app('tenancy')->initialized) {
-            throw new PublicationFailure('Documentation publishing is only available in the host context.');
+            throw CodedPublicationFailure::for(DocsPublishingError::HostRequired);
         }
     }
 
@@ -17,15 +20,15 @@ class PublicationPolicy
         $this->assertHostContext();
 
         if (! config('beam.docs.enabled', true)) {
-            throw new PublicationFailure('Documentation is disabled.');
+            throw CodedPublicationFailure::for(DocsPublishingError::Disabled);
         }
 
         if (! config('beam.docs.scalar.enabled', false)) {
-            throw new PublicationFailure('Scalar publishing is not enabled.');
+            throw CodedPublicationFailure::for(DocsPublishingError::ScalarDisabled);
         }
 
         if (! in_array(config('beam.docs.visibility', 'public'), ['public', 'private'], true)) {
-            throw new PublicationFailure('Documentation visibility must be public or private.');
+            throw CodedPublicationFailure::for(DocsPublishingError::InvalidVisibility);
         }
     }
 
@@ -34,12 +37,12 @@ class PublicationPolicy
         $this->assertEnabled();
 
         if (! $publication->is_private && config('beam.docs.visibility', 'public') !== 'public') {
-            throw new PublicationFailure('This public attempt cannot run while documentation is private. Create a new private attempt.');
+            throw CodedPublicationFailure::for(DocsPublishingError::VisibilityChanged);
         }
 
         // Retrying never silently switches destinations after configuration changes.
         if ($publication->namespace !== config('beam.docs.scalar.namespace') || $publication->slug !== config('beam.docs.scalar.slug')) {
-            throw new PublicationFailure('The configured Scalar destination has changed. Restore it to retry this snapshot.');
+            throw CodedPublicationFailure::for(DocsPublishingError::DestinationChanged);
         }
     }
 }

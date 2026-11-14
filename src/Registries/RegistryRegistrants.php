@@ -29,7 +29,7 @@ class RegistryRegistrants
         $describedHere = app(RegistryDocsAvailability::class)->knownLocally($root);
 
         if ($describedHere !== true) {
-            return new RegistryRegistrantsData($root, $describedHere, null, null, false, null, null, $describedHere === false ? self::NOT_HERE : null);
+            return new RegistryRegistrantsData($root, $describedHere, null, null, false, null, null, $describedHere === false ? __('beam-docs::messages.registry.not_here') : null);
         }
 
         try {
@@ -43,7 +43,7 @@ class RegistryRegistrants
         $class = is_object($owner) ? $owner::class : null;
 
         if (! $owner instanceof RecordsRegistrants || ! $owner instanceof Registry) {
-            return new RegistryRegistrantsData($root, true, $class, $describedBy, false, null, null, self::NOT_RECORDED);
+            return new RegistryRegistrantsData($root, true, $class, $describedBy, false, null, null, __('beam-docs::messages.registry.not_recorded'));
         }
 
         $entries = [];

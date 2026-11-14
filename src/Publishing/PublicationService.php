@@ -6,6 +6,8 @@ use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Splicewire\Beam\Docs\Localization\CodedPublicationFailure;
+use Splicewire\Beam\Docs\Localization\DocsPublishingError;
 use Splicewire\Beam\Docs\Publishing\Data\PublishInputData;
 use Splicewire\Beam\Docs\Publishing\Jobs\PublishToScalar;
 use Splicewire\Beam\OpenApi\OpenApiSpecSource;
@@ -29,7 +31,7 @@ class PublicationService
         $slug = config('beam.docs.scalar.slug');
         foreach (['namespace' => $namespace, 'slug' => $slug] as $key => $value) {
             if (! is_string($value) || strlen($value) > 128 || ! preg_match('/\A[a-z0-9][a-z0-9_-]*\z/', $value)) {
-                throw new PublicationFailure('Configure a valid Scalar '.$key.' before publishing.');
+                throw CodedPublicationFailure::for(DocsPublishingError::InvalidDestination, ['destination' => $key]);
             }
         }
 
@@ -37,10 +39,10 @@ class PublicationService
         // artifact path, destination, visibility, credential or alternate Scribe configuration.
         $spec = $this->source->spec(SpecFormat::Yaml, Request::create('/'));
         if ($spec === null || trim($spec->body) === '') {
-            throw new PublicationFailure('Generate the configured public-reference OpenAPI artifact before publishing.');
+            throw CodedPublicationFailure::for(DocsPublishingError::MissingArtifact);
         }
         if (strlen($spec->body) > 20 * 1024 * 1024) {
-            throw new PublicationFailure('The OpenAPI artifact exceeds the 20 MiB publication limit.');
+            throw CodedPublicationFailure::for(DocsPublishingError::ArtifactTooLarge);
         }
 
         return Publication::query()->create([
@@ -61,7 +63,7 @@ class PublicationService
         $original = $this->find($id);
         $this->policy->assertMayUpload($original);
         if ($original->status !== 'failed') {
-            throw new PublicationFailure('Only failed publication attempts can be retried.');
+            throw CodedPublicationFailure::for(DocsPublishingError::RetryRequiresFailure);
         }
 
         // A unique retry_of makes repeated clicks and concurrent retry requests idempotent.

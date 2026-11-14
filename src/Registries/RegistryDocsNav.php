@@ -9,6 +9,8 @@ use Splicewire\Beam\Docs\Data\RegistryIndexAvailability;
 use Splicewire\Beam\Docs\Data\RegistryIndexData;
 use Splicewire\Beam\Docs\Data\RegistryIndexGroupData;
 use Splicewire\Beam\Docs\Data\RegistryIndexRootData;
+use Splicewire\Beam\Localization\DeclaredText;
+use Splicewire\Beam\Localization\TextNamespaces;
 use Throwable;
 
 /**
@@ -147,11 +149,13 @@ class RegistryDocsNav
         }
 
         $index = [...$groups];
+        $text = app(DeclaredText::class);
+        $prefix = app(TextNamespaces::class)->ownerOfPackage('splicewire/laravel-beam-docs')->keyPrefix();
 
         if ($unlisted !== []) {
             $index[] = new RegistryIndexGroupData(
                 key: '',
-                title: (string) config('beam.docs.registries.nav.unlisted_title', 'On this host'),
+                title: (string) $text->resolve($prefix === null ? null : $prefix.'docs.registries.nav.unlisted_title', (string) config('beam.docs.registries.nav.unlisted_title', 'On this host')),
                 href: null,
                 roots: array_values(array_map(fn (NavNode $node): RegistryIndexRootData => new RegistryIndexRootData(
                     root: $node->title,
@@ -163,7 +167,7 @@ class RegistryDocsNav
         }
 
         return [new RegistryIndexNavNode(
-            title: (string) config('beam.docs.registries.nav.index_title', 'Registry index'),
+            title: (string) $text->resolve($prefix === null ? null : $prefix.'docs.registries.nav.index_title', (string) config('beam.docs.registries.nav.index_title', 'Registry index')),
             index: new RegistryIndexData(groups: $index, total: count($rows)),
             children: $links,
         )];
@@ -293,13 +297,13 @@ class RegistryDocsNav
         }
 
         [$availability, $note] = match (true) {
-            $row->kind === CatalogRow::KIND_EXEMPT => [RegistryIndexAvailability::Exempt, 'no page: '.($row->exemptionClass ?? 'exempt')],
-            $row->kind === null => [RegistryIndexAvailability::NotDocumented, 'not yet documented'],
+            $row->kind === CatalogRow::KIND_EXEMPT => [RegistryIndexAvailability::Exempt, __('beam-docs::messages.registry.no_page', ['class' => $row->exemptionClass ?? 'exempt'])],
+            $row->kind === null => [RegistryIndexAvailability::NotDocumented, __('beam-docs::messages.registry.not_documented')],
             // The owning package is not installed here: the plainest answer, and one that holds
             // even where the runtime index cannot be read (unbaked, mid-boot).
-            $row->owner !== null && ! isset(($this->installed ??= $this->packages->installed())[$row->owner]) => [RegistryIndexAvailability::NotAvailable, 'not available on this host'],
-            $this->availability->knownLocally($root) === false => [RegistryIndexAvailability::NotAvailable, 'not available on this host'],
-            default => [RegistryIndexAvailability::NotPublished, 'not published on this host'],
+            $row->owner !== null && ! isset(($this->installed ??= $this->packages->installed())[$row->owner]) => [RegistryIndexAvailability::NotAvailable, __('beam-docs::messages.registry.not_here')],
+            $this->availability->knownLocally($root) === false => [RegistryIndexAvailability::NotAvailable, __('beam-docs::messages.registry.not_here')],
+            default => [RegistryIndexAvailability::NotPublished, __('beam-docs::messages.registry.not_published')],
         };
 
         return new RegistryIndexRootData(root: $root, href: $this->deepLink($root), availability: $availability, note: $note);

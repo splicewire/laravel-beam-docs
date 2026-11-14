@@ -200,7 +200,7 @@ class DocsSearchOp
             }
             $name = BrandData::fromConfig($declared)->name;
 
-            return new DocsSearchFallbackData(label: "Search {$name} docs", href: $declared['docs'].'?q='.rawurlencode($q));
+            return new DocsSearchFallbackData(label: __('beam-docs::messages.search', ['name' => $name]), href: $declared['docs'].'?q='.rawurlencode($q));
         }
 
         return null;

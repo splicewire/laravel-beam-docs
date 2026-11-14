@@ -2,6 +2,7 @@
 
 namespace Splicewire\Beam\Docs;
 
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Rushing\Popcorn\Registries\ScopesRegistrant;
 use Rushing\Surgeon\Operation\SuggestsOperations;
 use Spatie\LaravelPackageTools\Package;
@@ -71,6 +72,10 @@ class BeamDocsServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        $this->callAfterResolving(ExceptionHandler::class, function ($handler): void {
+            $handler->renderable(Localization\DocsResponses::render(...));
+        });
+
         FrameEndpointUrl::register();
 
         $this->publishes([

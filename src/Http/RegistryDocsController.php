@@ -46,7 +46,7 @@ class RegistryDocsController
             root: $root,
             available: false,
             describedHere: $describedHere,
-            note: $describedHere === false ? 'not available on this host' : null,
+            note: $describedHere === false ? __('beam-docs::messages.registry.not_here') : null,
             kind: $row->kind,
             reason: $row->reason,
             pointer: $row->pointer,
