@@ -76,7 +76,11 @@ class ParticleResponseStrategy extends Strategy
                 $defaults[ParticleOperationController::NAME],
             ));
 
-            return [...$responses, ...$this->stashErrors($endpointData, $operation?->errors ?? [])];
+            $errors = is_object($operation) && method_exists($operation, 'declaredErrors')
+                ? ($operation->declaredErrors() ?? [])
+                : ($operation?->errors ?? []);
+
+            return [...$responses, ...$this->stashErrors($endpointData, $errors)];
         }
 
         $key = $defaults[ParticleController::RESOURCE] ?? null;

@@ -8,6 +8,7 @@ use Knuckles\Camel\Output\OutputEndpointData;
 use Knuckles\Scribe\Tools\DocumentationConfig;
 use Rushing\LaravelDataSchemasScribe\OpenApi\DataSchemaGenerator;
 use Spatie\LaravelData\Data;
+use Splicewire\Beam\Agreements\RequirementDeclarations;
 use Splicewire\Beam\Docs\Tests\TestCase;
 use Splicewire\Beam\Http\Particle\ParticleOperationController;
 use Splicewire\Beam\Particle\OperationKind;
@@ -127,6 +128,26 @@ class ParticleOperationErrorsTest extends TestCase
         $this->assertSame([200], array_column($this->strategy()($endpoint), 'status'));
         $this->assertSame([200], array_column($endpoint->custom['dataResponseSchemas'], 'status'));
         $this->assertArrayNotHasKey(ParticleErrorsGenerator::STASH, $endpoint->custom);
+    }
+
+    public function test_a_port_declared_requirement_is_documented_as_a_marked_428(): void
+    {
+        $this->app->instance(RequirementDeclarations::class, new class implements RequirementDeclarations
+        {
+            public function declares(string $behavior): bool
+            {
+                return $behavior === 'catalogs.recalculate';
+            }
+        });
+        $this->registerOp(null);
+        $endpoint = $this->endpoint();
+
+        $responses = $this->strategy()($endpoint);
+
+        $this->assertSame([200, 428], array_column($responses, 'status'));
+        $stash = array_column($endpoint->custom['dataResponseSchemas'], null, 'status');
+        $this->assertSame('#/$defs/RequirementRefusalData', $stash[428]['schema']['$ref']);
+        $this->assertTrue($stash[428]['schema']['x-particle-error']);
     }
 
     /**
