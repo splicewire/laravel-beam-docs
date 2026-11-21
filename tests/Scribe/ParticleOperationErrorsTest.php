@@ -9,6 +9,7 @@ use Knuckles\Scribe\Tools\DocumentationConfig;
 use Rushing\LaravelDataSchemasScribe\OpenApi\DataSchemaGenerator;
 use Spatie\LaravelData\Data;
 use Splicewire\Beam\Agreements\RequirementDeclarations;
+use Splicewire\Beam\Agreements\Requires;
 use Splicewire\Beam\Docs\Tests\TestCase;
 use Splicewire\Beam\Http\Particle\ParticleOperationController;
 use Splicewire\Beam\Particle\OperationKind;
@@ -132,11 +133,23 @@ class ParticleOperationErrorsTest extends TestCase
 
     public function test_a_port_declared_requirement_is_documented_as_a_marked_428(): void
     {
+        // The whole port (beam agreements 05): declares($b) must equal requirementsFor($b) !== [], so the one behavior this
+        // double declares carries one Requirement, and all() lists exactly it.
         $this->app->instance(RequirementDeclarations::class, new class implements RequirementDeclarations
         {
             public function declares(string $behavior): bool
             {
                 return $behavior === 'catalogs.recalculate';
+            }
+
+            public function requirementsFor(string $behavior): array
+            {
+                return $this->declares($behavior) ? [new Requires('terms')] : [];
+            }
+
+            public function all(): array
+            {
+                return ['catalogs.recalculate' => $this->requirementsFor('catalogs.recalculate')];
             }
         });
         $this->registerOp(null);
