@@ -26,14 +26,16 @@ class OpenApiSpecRouteTest extends TestCase
     {
         parent::setUp();
 
-        $this->artifact = storage_path('app/scribe/openapi.yaml');
+        // A private path, never the testbench skeleton's shared storage/app/scribe: under a parallel run another
+        // worker's tearDown deleted that file between this test's two GETs (ticket 110).
+        $this->artifact = sys_get_temp_dir().'/beam-docs-openapi-route-'.bin2hex(random_bytes(6)).'/openapi.yaml';
         File::ensureDirectoryExists(dirname($this->artifact));
         config(['beam.core.openapi.artifact' => $this->artifact]);
     }
 
     protected function tearDown(): void
     {
-        File::delete($this->artifact);
+        File::deleteDirectory(dirname($this->artifact));
 
         parent::tearDown();
     }

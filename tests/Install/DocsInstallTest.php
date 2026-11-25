@@ -2,6 +2,7 @@
 
 namespace Splicewire\Beam\Docs\Tests\Install;
 
+use Illuminate\Support\ServiceProvider;
 use Splicewire\Beam\Docs\Tests\TestCase;
 use Splicewire\Beam\Facades\Beam;
 use Splicewire\Beam\Scribe\Strategies\GroupStrategy;
@@ -16,12 +17,15 @@ class DocsInstallTest extends TestCase
 {
     public function test_the_scribe_stub_publishes_beams_emitter_only_defaults(): void
     {
-        $this->artisan('vendor:publish', ['--tag' => 'beam-scribe'])->assertExitCode(0);
+        // Read what the tag publishes without writing it: a real vendor:publish lands in the testbench skeleton's
+        // shared config/, and a parallel worker booting meanwhile globbed it and then required a deleted file
+        // (ticket 110).
+        $paths = ServiceProvider::pathsToPublish(null, 'beam-scribe');
+        $this->assertCount(1, $paths);
+        $this->assertSame(config_path('scribe.php'), reset($paths));
+        $this->assertFileExists($stub = (string) key($paths));
 
-        $published = config_path('scribe.php');
-        $this->assertFileExists($published);
-
-        $config = require $published;
+        $config = require $stub;
 
         $this->assertSame('laravel', $config['type']);
         $this->assertFalse($config['laravel']['add_routes']);
@@ -54,7 +58,5 @@ class DocsInstallTest extends TestCase
         // Beam ships the taxonomy EMPTY: a host's groups derive from its own declared particle resources,
         // never from one estate's ontology seeded into every host (ADR-0211 §10).
         $this->assertSame([], $config['groups']['order']);
-
-        @unlink($published);
     }
 }

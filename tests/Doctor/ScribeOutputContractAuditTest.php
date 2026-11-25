@@ -28,7 +28,9 @@ class ScribeOutputContractAuditTest extends TestCase
     {
         parent::setUp();
 
-        $this->artifact = storage_path('app/scribe/openapi.yaml');
+        // A private path, never the testbench skeleton's shared storage/app/scribe, which a parallel worker's
+        // OpenApiSpecRouteTest also writes (ticket 110).
+        $this->artifact = sys_get_temp_dir().'/beam-docs-scribe-audit-'.bin2hex(random_bytes(6)).'/openapi.yaml';
         config([
             'beam.core.openapi.artifact' => $this->artifact,
             'scribe.type' => 'laravel',
@@ -38,7 +40,7 @@ class ScribeOutputContractAuditTest extends TestCase
 
     protected function tearDown(): void
     {
-        File::delete($this->artifact);
+        File::deleteDirectory(dirname($this->artifact));
 
         parent::tearDown();
     }
